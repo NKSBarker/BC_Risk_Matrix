@@ -4,3 +4,9 @@
 .Ruserdata
 
 cache/
+
+data/
+
+output/
+
+*.docx

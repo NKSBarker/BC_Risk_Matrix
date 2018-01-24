@@ -57,10 +57,8 @@ require(ggplot2)
 
 ``` {r set.directories, message=F}
 # Nicole's PC at U of A
-datdir <- "C:/Users/nbarker/Dropbox/BAM/BC_Risk_Matrix/data" 
-cachedir <- "C:/Users/nbarker/Dropbox/BAM/BC_Risk_Matrix/cache_Nicole"
-
-setwd(datdir)
+datadir <- "C:/Users/nbarker/Dropbox/BAM/BC_Risk_Matrix/data" 
+repodir <- "C:/Users/nbarker/Documents/repos/BC_Risk_Matrix"
 ```
 
 ## 1. XY Coordinates of each survey site: *BC_COFI_XY.txt*
@@ -68,7 +66,7 @@ setwd(datdir)
 ### Initial Quality Check, Removal of Duplicates, Check for Missing DAta
 
 ``` {r load.xy}
-xy<- data.table(read.csv("BC_COFI_XY.csv"))
+xy<- data.table(read.csv(paste0(datadir, "/BC_COFI_XY.csv")))
 kable(head(xy), row.names=F)
 ```
 
@@ -101,7 +99,7 @@ length(unique(xy$SS))
 * covariatesforoffsetMay2017Timezone_manuallyFixed.csv
 
 ``` {r}
-ss.covar <- data.table(read.csv("covariatesforoffsetMay2017Timezone_manuallyFixed.csv", header=T))
+ss.covar <- data.table(read.csv(paste0(datadir, "/covariatesforoffsetMay2017Timezone_manuallyFixed.csv"), header=T))
 colnames(ss.covar)
 unique(ss.covar$PCODE)
 ```
@@ -273,6 +271,5 @@ kable(rbind(head(xy.ss.covar),
 #### Save as RData file for future use
 
 ``` {r}
-setwd(cachedir)
-save(xy.ss.covar, file="xy.ss.covar.RData")
+save(xy.ss.covar, file=paste0(repodir, "/cache/xy.ss.covar.RData"))
 ```

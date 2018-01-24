@@ -39,7 +39,9 @@ There are readme files within the munge and src folders with more specific detai
 	
 	`opts_knit$set(root.dir = '..') #sets reference directory one level up from where the current file is (don't worry about this too much; but it is important for re-running scripts)`
 
-__ Currently considering taking projectTemplate out of the equation. I'll need to update this readme to reflect the new workflow. 
+-----------
+# Currently considering taking projectTemplate out of the equation. I'll need to update this readme to reflect the new workflow. 
+-----------
 
 I also need to adjust for the fact that data is now stored on Dropbox while scripts are elsewhere. Relative directories become a bit more challenging then. 
 
