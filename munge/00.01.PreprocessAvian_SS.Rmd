@@ -1,7 +1,7 @@
 ---
 title: "Pre-process avian data at the SS level"
 author: "Nicole Barker"
-date: "Last run: Jan 24, 2017"
+date: "Last run: Jan 25, 2017"
 output: 
   word_document:
     reference_docx: ../styles/ReportFormat_1.docx
@@ -11,6 +11,8 @@ output:
 One of a series of scripts that quality-checks, corrects,  pre-processes, and merges the various tables from BAM's Avian Database. Removes duplicates. Performs some initial tests of patterns in avian data by survey method to help decide how to harmonize the data. 
 
 This script deals with SS (site)-level data, and adds in site-level covariates.
+
+**SCRIPT OUTPUT : data.table in RData file xy.ss.covar.RData (see cache folder on Dropbox)**
 
 ## Background
 On Nov 30, 2017, Trish provided me with the Access Database of BAM's avian data: COFI_BC_NOV30_2017.accdb. I exported the 3 tables based on BAM's standard data format.
@@ -41,32 +43,26 @@ It's useful to look at a map to understand how the column names correspond to po
 
 ![ ^^^ Image. BBS, Atlas (BCCA), and KMART (Kathy Martin)'s data, as an example of PCODE, SITE, and STN. Different coloured dots are from different projects (PCODEs). Kathy Martin's data (KMART) has clusters of stations in different sites (SITE), which are labelled KNIFEAFF, KNIFE7M, etc. Within (SITE) clusters are individual stations (STN). The combination of PCODE:SITE:STN makes up SS, which is a  unique ID corresponding to a given location indicated by xy coordinates](../output/KathyMartinSITEdemo.jpg)
 
-
 ``` {r setup, echo=F, message=F, warning=F}
 require(knitr)
-#opts_knit$set(root.dir = '..')
+opts_knit$set(root.dir = '..')
 ```
 
-``` {r load.libraries}
+``` {r setup2, message=F, warning=F}
 require(data.table)
 require(stringr)
 require(reshape2)
 require(ggplot2)
-```
-**When running these scripts on a different computer, be sure to add the corresponding data directory**
-
-``` {r set.directories, message=F}
-# Nicole's PC at U of A
-datadir <- "C:/Users/nbarker/Dropbox/BAM/BC_Risk_Matrix/data" 
-repodir <- "C:/Users/nbarker/Documents/repos/BC_Risk_Matrix"
+require(rdrop2)
+drop_auth(rdstoken="token.rds")
 ```
 
 ## 1. XY Coordinates of each survey site: *BC_COFI_XY.txt*
 
-### Initial Quality Check, Removal of Duplicates, Check for Missing DAta
+### Initial Quality Check, Removal of Duplicates, Check for Missing Data
 
 ``` {r load.xy}
-xy<- data.table(read.csv(paste0(datadir, "/BC_COFI_XY.csv")))
+xy<- data.table(drop_read_csv("BAM/data/BC_Risk_Matrix/BC_COFI_XY.csv"))
 kable(head(xy), row.names=F)
 ```
 
@@ -99,7 +95,7 @@ length(unique(xy$SS))
 * covariatesforoffsetMay2017Timezone_manuallyFixed.csv
 
 ``` {r}
-ss.covar <- data.table(read.csv(paste0(datadir, "/covariatesforoffsetMay2017Timezone_manuallyFixed.csv"), header=T))
+ss.covar <- data.table(drop_read_csv("BAM/data/BC_Risk_Matrix/covariatesforoffsetMay2017Timezone_manuallyFixed.csv"), header=T)
 colnames(ss.covar)
 unique(ss.covar$PCODE)
 ```
@@ -271,5 +267,5 @@ kable(rbind(head(xy.ss.covar),
 #### Save as RData file for future use
 
 ``` {r}
-save(xy.ss.covar, file=paste0(repodir, "/cache/xy.ss.covar.RData"))
+save(xy.ss.covar, file=("cache/xy.ss.covar.RData"))
 ```
