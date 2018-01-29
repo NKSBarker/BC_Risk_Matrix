@@ -48,13 +48,9 @@ require(knitr)
 opts_knit$set(root.dir = '..')
 ```
 
-``` {r setup2, message=F, warning=F}
-require(data.table)
-require(stringr)
-require(reshape2)
-require(ggplot2)
-require(rdrop2)
-drop_auth(rdstoken="token.rds")
+Source setup script
+``` {r}
+source("lib/Setup_NB_WorkPC.R")
 ```
 
 ## 1. XY Coordinates of each survey site: *BC_COFI_XY.txt*
@@ -62,7 +58,7 @@ drop_auth(rdstoken="token.rds")
 ### Initial Quality Check, Removal of Duplicates, Check for Missing Data
 
 ``` {r load.xy}
-xy<- data.table(drop_read_csv("BAM/data/BC_Risk_Matrix/BC_COFI_XY.csv"))
+xy<- data.table(read.csv(paste0(droproot, "data/BC_Risk_Matrix/BC_COFI_XY.csv"), header=T))
 kable(head(xy), row.names=F)
 ```
 
@@ -95,7 +91,7 @@ length(unique(xy$SS))
 * covariatesforoffsetMay2017Timezone_manuallyFixed.csv
 
 ``` {r}
-ss.covar <- data.table(drop_read_csv("BAM/data/BC_Risk_Matrix/covariatesforoffsetMay2017Timezone_manuallyFixed.csv"), header=T)
+ss.covar <- data.table(read.csv(paste0(droproot, "data/BC_Risk_Matrix/covariatesforoffsetMay2017Timezone_manuallyFixed.csv"), header=T))
 colnames(ss.covar)
 unique(ss.covar$PCODE)
 ```
