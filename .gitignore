@@ -2,10 +2,10 @@
 .Rhistory
 .RData
 .Ruserdata
+
 cache/
 data/
 output/
-*.docx
-.httr-oauth
 
-token\.rds
+# Individual output files
+munge/00\.01\.PreprocessAvian_SS\.docx
