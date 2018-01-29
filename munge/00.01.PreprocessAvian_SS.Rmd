@@ -12,7 +12,12 @@ One of a series of scripts that quality-checks, corrects,  pre-processes, and me
 
 This script deals with SS (site)-level data, and adds in site-level covariates.
 
-**SCRIPT OUTPUT : data.table in RData file xy.ss.covar.RData (see cache folder on Dropbox)**
+**SCRIPT OUTPUTS:**
+
+1. **data.table in RData file xy.ss.covar.RData (see cache folder on Dropbox)**
+2. **csv in output folder in repo for sharing with Trish (or others)**
+3. **docx file with text and code snippets plus inline output - so you don't need to run this script**
+
 
 ## Background
 On Nov 30, 2017, Trish provided me with the Access Database of BAM's avian data: COFI_BC_NOV30_2017.accdb. I exported the 3 tables based on BAM's standard data format.
@@ -41,7 +46,7 @@ It's useful to look at a map to understand how the column names correspond to po
 * _METHOD_: The survey method (survey distance, duration); usually but not always consistent within a PCODE.
 * _obs_: Identity of the survey observer.
 
-![ ^^^ Image. BBS, Atlas (BCCA), and KMART (Kathy Martin)'s data, as an example of PCODE, SITE, and STN. Different coloured dots are from different projects (PCODEs). Kathy Martin's data (KMART) has clusters of stations in different sites (SITE), which are labelled KNIFEAFF, KNIFE7M, etc. Within (SITE) clusters are individual stations (STN). The combination of PCODE:SITE:STN makes up SS, which is a  unique ID corresponding to a given location indicated by xy coordinates](../output/KathyMartinSITEdemo.jpg)
+![ ^^^ Image. BBS, Atlas (BCCA), and KMART (Kathy Martin)'s data, as an example of PCODE, SITE, and STN. Different coloured dots are from different projects (PCODEs). Kathy Martin's data (KMART) has clusters of stations in different sites (SITE), which are labelled KNIFEAFF, KNIFE7M, etc. Within (SITE) clusters are individual stations (STN). The combination of PCODE:SITE:STN makes up SS, which is a  unique ID corresponding to a given location indicated by xy coordinates](../images/KathyMartinSITEdemo.jpg)
 
 ``` {r setup, echo=F, message=F, warning=F}
 require(knitr)
@@ -59,7 +64,7 @@ source("lib/Setup_anyComputer.R")
 ### Initial Quality Check, Removal of Duplicates, Check for Missing Data
 
 ``` {r load.xy}
-xy<- data.table(read.csv(paste0(droproot, "BC_Risk_Matrix/BC_COFI_XY.csv"), header=T))
+xy<- data.table(read.csv(paste0(droproot, "data/BC_COFI_XY.csv"), header=T))
 kable(head(xy), row.names=F)
 ```
 
@@ -92,7 +97,7 @@ length(unique(xy$SS))
 * covariatesforoffsetMay2017Timezone_manuallyFixed.csv
 
 ``` {r}
-ss.covar <- data.table(read.csv(paste0(droproot, "BC_Risk_Matrix/covariatesforoffsetMay2017Timezone_manuallyFixed.csv"), header=T))
+ss.covar <- data.table(read.csv(paste0(droproot, "data/covariatesforoffsetMay2017Timezone_manuallyFixed.csv"), header=T))
 colnames(ss.covar)
 unique(ss.covar$PCODE)
 ```
@@ -261,14 +266,14 @@ kable(rbind(head(xy.ss.covar),
             tail(xy.ss.covar)))
 ```
 
-#### Save as RData file for future use
+#### Save as RData file to Dropbox folder for sharing and future use
 
 ``` {r}
-save(xy.ss.covar, file=("cache/xy.ss.covar.RData"))
+save(xy.ss.covar, file=paste0(droproot,"cache/xy.ss.covar.RData"))
 ```
 
-#### Write to table for Trish to quality-check missing data
+#### Write data to table for Trish to quality-check missing data
 
 ``` {r}
-write.csv(xy.ss.covar, file="output/BCdata_xy.ss.covar.RData")
+write.csv(xy.ss.covar, file=paste0(droproot, "output/BCdata_xy.ss.covar.csv"))
 ```
