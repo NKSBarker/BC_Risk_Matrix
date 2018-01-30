@@ -1,0 +1,115 @@
+---
+title: "Pre-process project summary and method tables"
+author: "Nicole Barker"
+date: "Last run: Jan 30, 2017"
+output: 
+  word_document:
+    reference_docx: ../styles/ReportFormat_1.docx
+---
+## Script Abstract
+
+One of a series of scripts that quality-checks, corrects,  pre-processes, and merges the various tables from BAM's Avian Database. Removes duplicates. Performs some initial tests of patterns in avian data by survey method to help decide how to harmonize the data. 
+
+This script deals with survey methods, checking for consistency, missing data, and merging method details to each unique "METHOD".
+
+**SCRIPT OUTPUTS:**
+
+1. **data.table in RData file XXXXXX (see cache folder on Dropbox)**
+2. **csv  (see output folder on Dropbox)**
+3. **docx file with text and code snippets plus inline output (written directly to my repo, but ignored by Git. I'll need to copy over manually to Dropbox for sharing)**
+
+## Background
+On Nov 30, 2017, Trish provided me with the Access Database of BAM's avian data: COFI_BC_NOV30_2017.accdb. Three tables relate to survey method
+
+**FILES**
+
+1. **National_Proj_Summary_V4_2015** : Details about dataset provide for a given project. e.g., Calling Lake, BC Atlas
+2. **DD_distance_codes_methodology** : Lookup table linking a letter code to a given distance interval methodology
+3. **DD_duration_codes_methodology** : Lookup table linking a letter code to a given duration interval methodology
+
+This script does the following
+
+* 
+* 
+* 
+
+
+``` {r setup, echo=F, message=F, warning=F}
+require(knitr)
+opts_knit$set(root.dir = '..')
+```
+
+Source setup script
+``` {r, warning=F, message=F}
+source("lib/Setup_NB_WorkPC.R")
+source("lib/Setup_anyComputer.R")
+```
+
+## 1. Project Details National_Proj_Summary_V4_2015.csv
+
+```{r, load.proj.summary}
+projs <- data.table(read.csv(paste0(droproot, "data/National_Proj_Summary_V4_2015.csv"), header=T))
+colnames(projs)[which(colnames(projs) == "Method")] <- "METHOD" #change colname
+projs$Maxdist <- toupper(projs$Maxdist) #make codes upper case
+
+kable(head(projs[c("PCODE", "METHOD", "DURMETH", "DISTMETH", "ChangeMethod", "MaxDuration", "Maxdist")]), row.names=F)
+```
+
+**Checking for Missing Data**
+
+``` {r}
+kable(as.data.frame(do.call(rbind,lapply(projs, function(x) {length(unique(x))}))), caption="Number unique values per column")
+
+kable(as.data.frame(do.call(rbind,lapply(projs, function(x) {sum(is.na(x))}))), caption="Number of missing values per column")
+
+nrow(projs)
+length(unique(projs$METHOD))
+length(unique(projs$PCODE))
+rm(projs)
+```
+
+**ERROR NOTICED** - Some of the new projects don't have max dist and max duration in their tables
+
+* Correction: I referred back to the Access database to update the project summary table accordingly
+* Now reload the project summary with manual correction
+
+``` {r}
+projs <- read.csv("data/qry_ProjMethodSummary-manuallyCorrected.csv", header=T)
+
+colnames(projs)[which(colnames(projs) == "Method")] <- "METHOD" #change colname
+projs.qs <- projs #quicksave
+projs$Maxdist <- toupper(projs$Maxdist)
+
+kable(head(projs[c("PCODE", "METHOD", "DURMETH", "DISTMETH", "MaxDuration", "Maxdist")]), row.names=F)
+```
+
+**Checking for Missing Data**
+
+``` {r}
+kable(as.data.frame(do.call(rbind,lapply(projs, function(x) {length(unique(x))}))), caption="Number unique values per column")
+
+kable(as.data.frame(do.call(rbind,lapply(projs, function(x) {sum(is.na(x))}))), caption="Number of missing values per column")
+
+nrow(projs)
+length(unique(projs$METHOD))
+length(unique(projs$PCODE))
+```
+
+``` {r}
+pkey.method <- merge(pkey[c("PKEY", "SS", "PCODE", "SITE", "STN", "ROUND", "YYYY", "MM", "DD", "HR", "MIN","METHOD", "obs", colnames(pkey)[grep("Missing", colnames(pkey))])], 
+                     projs[c("METHOD", "DURMETH", "DURATIONRANGE", "MaxDuration", "DISTMETH", "DISTANCERANGE", "Maxdist")], by="METHOD", all.x=T) # keep all METHODs in the PKEY table, but discard any that are just in the methods table. 
+
+kable(as.data.frame(do.call(rbind,lapply(pkey.method, function(x) {sum(is.na(x))}))), caption="Number of missing values per column")
+
+pkey.method$Missing_Method <- NA
+pkey.method$Missing_Method[!is.na(pkey$METHOD)] <- "NOT missing Method"
+
+```
+
+#### Cache, clean, and reload
+
+``` {r}
+cache("pkey.method")
+rm(list=ls());gc()
+```
+
