@@ -54,7 +54,7 @@ opts_knit$set(root.dir = '..')
 ```
 
 Source setup script
-``` {r}
+``` {r, warning=F, message=F}
 source("lib/Setup_NB_WorkPC.R")
 source("lib/Setup_anyComputer.R")
 ```
@@ -226,7 +226,7 @@ kable(rbind(head(xy.ss.covar[is.na(xy.ss.covar$X),]), tail(xy.ss.covar[is.na(xy.
 **NOTES**
 
 * Only `r sum(is.na(xy.ss.covar$Missing_Coordinates))` SS are missing coordinates. This is the same number missing from the original xy table. Basically, any points missing xy coordinates from the original "SS" table are missing them throughout. These are probably the BBS points that Trish told me about. 
-* Although `unique(xy.ss.covar[is.na(xy.ss.covar$Missing_XY),]$PCODE.x)` suggests that we're missing points from `r unique(xy.ss.covar[is.na(xy.ss.covar$Missing_XY),]$PCODE.x)`
+* Although `unique(xy.ss.covar[is.na(xy.ss.covar$Missing_XY),]$PCODE)` suggests that we're missing points from `r unique(xy.ss.covar[is.na(xy.ss.covar$Missing_XY),]$PCODE)`
 * ACTION: Long-term: Suggest Trish could look into datasets without coordinates. 
 * ACTION: Short-term: Keep them for now but they'll be dropped at covariate stage
 * Next Step: Deal with missing covariates
@@ -254,10 +254,49 @@ table(xy.ss.covar[is.na(xy.ss.covar$Missing_Covar),]$PCODE)
 * ACTION: Long-term: Suggest Trish produce a fresh intersect with all data points in BC 
 * ACTION: Short-term: Keep them for now but they'll be dropped at offset stage
 
+### Reclass Variables
+
+#### Tree cover
+
+Extracted from Psolymos' data processing scripts. https://github.com/psolymos/bamanalytics/blob/master/R/dataprocessing.R
+
+``` {r}
+xy.ss.covar$tree[xy.ss.covar$tree > 100] <- NA
+xy.ss.covar$tree[xy.ss.covar$tree < 0] <- NA
+xy.ss.covar$tree <- xy.ss.covar$tree / 100
+xy.ss.covar$tree3 <- factor(NA, levels=c("Open", "Sparse", "Dense"))
+xy.ss.covar$tree3[xy.ss.covar$tree < 0.25] <- "Open"
+xy.ss.covar$tree3[xy.ss.covar$tree >= 0.25 & xy.ss.covar$tree < 0.60] <- "Sparse"
+xy.ss.covar$tree3[xy.ss.covar$tree >= 0.60] <- "Dense"
+```
+
+#### NALCMS
+
+May not need all of this... I think it was customized for the national CAWA models. 
+
+``` {r}
+ltnalc <- read.csv("lookup/nalcms.csv")
+xy.ss.covar$NALCMS05[xy.ss.covar$NALCMS05 > max(ltnalc$Value)] <- NA
+xy.ss.covar$NALCMS05[xy.ss.covar$NALCMS05 < 0] <- NA
+
+xy.ss.covar$HAB_NALC2 <- ltnalc$Label[match(xy.ss.covar$NALCMS05, ltnalc$Value)]
+tmp <- as.character(interaction(xy.ss.covar$HAB_NALC2, xy.ss.covar$tree3, sep="", drop=TRUE))
+xy.ss.covar$HAB_NALC1 <- as.character(xy.ss.covar$HAB_NALC2)
+ii <- xy.ss.covar$HAB_NALC1 %in% c("Conif", "Decid", "Mixed", "Wet")
+xy.ss.covar$HAB_NALC1[ii] <- tmp[ii]
+xy.ss.covar$HAB_NALC1 <- as.factor(xy.ss.covar$HAB_NALC1)
+xy.ss.covar$HAB_NALC2 <- as.factor(xy.ss.covar$HAB_NALC2)
+xy.ss.covar$HAB_NALC1 <- relevel(xy.ss.covar$HAB_NALC1, "ConifDense")
+xy.ss.covar$HAB_NALC2 <- relevel(xy.ss.covar$HAB_NALC2, "Conif")
+```
+
+
+### Clean up
+
 #### Subset for desired columns
 
 ``` {r}
-colstokeep <- which(colnames(xy.ss.covar) %in% c("SS", "tree", "NALCMS05", "TZID", "FID_tz_wor", "X_coor", "Y_coor", "Missing_Coordinates", "Missing_Covar"))
+colstokeep <- which(colnames(xy.ss.covar) %in% c("SS", "tree", "tree3", "NALCMS05", "TZID", "FID_tz_wor", "X_coor", "Y_coor", "Missing_Coordinates", "Missing_Covar"))
 xy.ss.covar <- xy.ss.covar[,..colstokeep]
 ```
 
