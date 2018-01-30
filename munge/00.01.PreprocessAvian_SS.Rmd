@@ -15,8 +15,8 @@ This script deals with SS (site)-level data, and adds in site-level covariates.
 **SCRIPT OUTPUTS:**
 
 1. **data.table in RData file xy.ss.covar.RData (see cache folder on Dropbox)**
-2. **csv in output folder in repo for sharing with Trish (or others)**
-3. **docx file with text and code snippets plus inline output - so you don't need to run this script**
+2. **csv in output folder in repo for sharing with Trish (or others) (see output folder on Dropbox)**
+3. **docx file with text and code snippets plus inline output (written directly to my repo, but ignored by Git. I'll need to copy over manually to Dropbox for sharing)**
 
 
 ## Background
@@ -275,5 +275,5 @@ save(xy.ss.covar, file=paste0(droproot,"cache/xy.ss.covar.RData"))
 #### Write data to table for Trish to quality-check missing data
 
 ``` {r}
-write.csv(xy.ss.covar, file=paste0(droproot, "output/BCdata_xy.ss.covar.csv"))
+write.csv(xy.ss.covar, file=paste0(droproot, "output_data/BCdata_xy.ss.covar.csv"))
 ```
