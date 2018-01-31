@@ -1,20 +1,13 @@
 ---
-<<<<<<< HEAD
 title: "Pre-process project summary and method tables"
 author: "Nicole Barker"
 date: "Last run: Jan 30, 2017"
-=======
-title: "00.01.MergeAvianFiles"
-author: "Nicole Barker"
-date: "Last run: Jan 22, 2017"
->>>>>>> master
 output: 
   word_document:
     reference_docx: ../styles/ReportFormat_1.docx
 ---
 ## Script Abstract
 
-<<<<<<< HEAD
 One of a series of scripts that quality-checks, corrects,  pre-processes, and merges the various tables from BAM's Avian Database. Removes duplicates. Performs some initial tests of patterns in avian data by survey method to help decide how to harmonize the data. 
 
 This script deals with survey methods, checking for consistency, missing data, and merging method details to each unique "METHOD".
@@ -34,40 +27,50 @@ On Nov 30, 2017, Trish provided me with the Access Database of BAM's avian data:
 2. **DD_distance_codes_methodology** : Lookup table linking a letter code to a given distance interval methodology
 3. **DD_duration_codes_methodology** : Lookup table linking a letter code to a given duration interval methodology
 
+**OFFSET-REQUIREMENTS**
+
+* To calculate the Solymos et al 2013 style offsets (correcting for survey method, species availability, species perceptability), we need the following details: 
+    * XY coordinates (from SS table)
+    * time zone (from SS table)
+    * tree cover (tree; TREE) at point count location (from SS table)
+    * land cover class (NALCMS05) at point count location (from SS table)
+    * land cover class (LCC2; LCC4) at point count location (derived from NALCMS)
+    * Maximum Duration (MaxDuration; MAXDUR) of survey (from method table)
+    * Maximum Distance (Masdist; MAXDIS) of survey (from method table)
+    * Date of year (YYYY MM and DD) (from PKEY table)
+    * Days since local spring (DSLS; derived from????
+    * Time since sunrise (TSSR; derived from survey time andtime zone)
+    * species (SPP) (from point count data table)
+    
+    PKEY
+    TSSR
+    JDAY
+    MAXDUR
+    MAXDIS
+    
+    TREE
+    TREE3
+    HAB_NALC1
+    HAB_NALC2
+    SPRING
+    MDT_offset (derived from time zone)
+    srise (derived from sunriset function and XY coordinates)
+    DSLS (derived from JULIAN & SPRING)
+    
+    
+
 This script does the following
 
 * 
 * 
 * 
-=======
-Quality-checks, corrects, pre-processes, and merges the various tables from BAM's Avian Database. Removes duplicates. Performs some initial tests of patterns in avian data by survey method to help decide how to harmonize the data. 
-Combines spatial data (SS), survey instance (PKEY), and point count (ABUND) data into one flat dataset and saves as csv for future use: _data/birddata_preprocess1.csv_
-
-
-## Background
-On Nov 30, 2017, Trish provided me with the Access Database of BAM's avian data: COFI_BC_NOV30_2017.accdb. I exported the 3 tables based on BAM's standard data format.
-
-**FILES**
-
-1. **BC_COFI_XY.csv**
-2. **BC_COFI_PKEY.txt**
-3. **BC_COFI_POINTCOUNT.txt**
-
-This script does the following
-
-* Look for and eliminate duplications
-* Correct any errors noticed during pre-processing
-* Save a pre-processed table of point count data for future use: data/birddata_preprocess1.csv 
->>>>>>> master
-
 
 ``` {r setup, echo=F, message=F, warning=F}
 require(knitr)
 opts_knit$set(root.dir = '..')
 ```
 
-<<<<<<< HEAD
-Source setup script
+
 ``` {r, warning=F, message=F}
 source("lib/Setup_NB_WorkPC.R")
 source("lib/Setup_anyComputer.R")
@@ -79,252 +82,10 @@ source("lib/Setup_anyComputer.R")
 projs <- data.table(read.csv(paste0(droproot, "data/National_Proj_Summary_V4_2015.csv"), header=T))
 colnames(projs)[which(colnames(projs) == "Method")] <- "METHOD" #change colname
 projs$Maxdist <- toupper(projs$Maxdist) #make codes upper case
-=======
-``` {r load.project, message=F}
-require(ProjectTemplate)
-load.project()
-options(digits=12)
-```
-
-## 1. XY Coordinates of each survey site: *BC_COFI_XY.txt*
-
-### Initial Quality Check, Removal of Duplicates, Check for Missing DAta
-
-``` {r load.xy}
-xy<- read.csv("data/BC_COFI_XY.csv")
-kable(head(xy), row.names=F)
-```
-
-**Checking for Missing Data**
-
-``` {r}
-kable(as.data.frame(do.call(rbind,lapply(xy, function(x) {sum(is.na(x))}))), caption="Number of missing values per column")
-kable(as.data.frame(do.call(rbind,lapply(xy, function(x) {length(unique(x))}))), caption="Number unique values per column")
-nrow(xy)
-length(unique(xy$SS))
-```
-
-``` {r}
-xy$Missing_XY <- NA
-xy$Missing_XY[!(is.na(xy$X))] <- "NOT missing XY"
-```
-
-**Notes**
-
-* `r unique(xy[is.na(xy$X),]$PCODE)` have SSs without X coordinates
-* ACTION: Long-term: Suggest Trish could look into datasets without coordinates. 
-* ACTION: Short-term: Keep them for now but they'll be dropped at covariate stage
-
-### Add Covariates at location (XY /SS) level
-
-#### Load SS Covariates
-
-``` {r}
-ss.covar <- read.csv("data/covariatesforoffsetMay2017Timezone.csv", header=T)
-colnames(ss.covar)
-unique(ss.covar$PCODE)
-ss.covar.uniquevalues <- as.data.frame(do.call(rbind,lapply(ss.covar, function(x) { length(unique(x))})))
-colnames(ss.covar.uniquevalues) <- c("Num.Unique.Values")
-kable(ss.covar.uniquevalues)
-```
-
-#### Merge SS covariates with xy table by SS
-
-
-``` {r}
-xy.ss.covar <- merge(xy, ss.covar, by="SS", all=T)
-```
-
-**Some Quality Checks*
-
-``` {r}
-xy.ss.covar$PCODE.x <- as.character(xy.ss.covar$PCODE.x)
-xy.ss.covar$PCODE.y <- as.character(xy.ss.covar$PCODE.y)
-all.equal(xy.ss.covar$PCODE.x, xy.ss.covar$PCODE.y)
-
-unique(xy.ss.covar[is.na(xy.ss.covar$PCODE.y),]$PCODE.x)
-unique(xy.ss.covar[is.na(xy.ss.covar$PCODE.x),]$PCODE.y)
-
-```
-
-**Remove QC Atlas and MB Atlas from covariates table, then redo merge and quality check**
-
-``` {r}
-ss.covar <- subset(ss.covar, ss.covar$PCODE %in% c("BCCA","EKTFL14", "LRM655", "KMART", "QDFA", "PGTSA", "TFL48VM", "BL2TFL48", "GMSMON15", "DCFBP"))
-```
-
-**Some Quality Checks*
-
-``` {r}
-xy.ss.covar$PCODE.x <- as.character(xy.ss.covar$PCODE.x)
-xy.ss.covar$PCODE.y <- as.character(xy.ss.covar$PCODE.y)
-all.equal(xy.ss.covar$PCODE.x, xy.ss.covar$PCODE.y)
-
-```
-
-**NOTES**
-
-* It appears that some SS from the following projects are missing covariates: `r unique(xy.ss.covar[is.na(xy.ss.covar$PCODE.y),]$PCODE.x)`
-* Some SS from `r unique(xy.ss.covar[is.na(xy.ss.covar$PCODE.x),]$PCODE.y)` are in the covariates file but not the XY/SS file in the COFI Access database. 
-
-##### Fix: Create new PCODE
-
-``` {r}
-xy.ss.covar$PCODE <- xy.ss.covar$PCODE.x
-xy.ss.covar$PCODE[is.na(xy.ss.covar$PCODE)] <- xy.ss.covar$PCODE.y[is.na(xy.ss.covar$PCODE)]
-unique(xy.ss.covar$PCODE)
-```
-
-**Checking for Missing Data**
-
-``` {r}
-kable(as.data.frame(do.call(rbind,lapply(xy.ss.covar, function(x) {sum(is.na(x))}))), caption="Number of missing values per column")
-kable(as.data.frame(do.call(rbind,lapply(xy.ss.covar, function(x) {length(unique(x))}))), caption="Number unique values per column")
-nrow(xy.ss.covar)
-length(unique(xy.ss.covar$SS))
-```
-
-
-**Regnerate XY coordinates by extracting from both tables**
-``` {R}
-xy.ss.covar$X_coor <- xy.ss.covar$X
-xy.ss.covar$X_coor[!is.na(xy.ss.covar$POINT_X)] <- xy.ss.covar$POINT_X[!is.na(xy.ss.covar$POINT_X)]
-
-xy.ss.covar$Y_coor <- xy.ss.covar$Y
-xy.ss.covar$Y_coor[!is.na(xy.ss.covar$POINT_Y)] <- xy.ss.covar$POINT_Y[!is.na(xy.ss.covar$POINT_Y)]
-```
-
-
-``` {r}
-xy.ss.covar$Missing_Coordinates <- NA
-xy.ss.covar$Missing_Coordinates[!is.na(xy.ss.covar$X_coor)] <- "NOT missing Coordinates"
-unique(xy.ss.covar$Missing_Coordinates)
-```
-
-
-``` {r}
-xy.ss.covar$Missing_Covar <- NA
-xy.ss.covar$Missing_Covar[!is.na(xy.ss.covar$tree)] <- "NOT missing Covariates"
-unique(xy.ss.covar$Missing_Covar)
-
-```
-
-**Notes**
-
-* `r unique(xy.ss.covar[xy.ss.covar$Missing_Covar == "Missing Covariates",]$PCODE)` have SSs without covariates
-* ACTION: Long-term: Suggest Trish could look into datasets without covariates. 
-* ACTION: Short-term: Keep them for now but they'll be dropped at offset stage
-
-
-#### Subset for desired columns
-
-``` {r}
-colstokeep <- c("SS", "tree", "NALCMS05", "TZID", "FID_tz_wor", "X_coor", "Y_coor", "Missing_Coordinates", "Missing_Covar")
-xy.ss.covar <- xy.ss.covar[which(colnames(xy.ss.covar) %in% colstokeep)]
-```
-
-#### Cache, clean, and reload
-
-``` {r}
-cache("xy.ss.covar")
-rm(list=ls());gc()
-load("cache/xy.ss.covar.RData")
-```
-
-### 2. Sampling Occasions: *BC_COFI_PKEY.txt*
-The BAM Database is hierarchical, with primary keys for each table compounding upon each other in the various tables. 
-It's useful to look at a map to understand how the column names correspond to point count survey protocols/sampling design.  Kathy Martin's data represents a good example. 
-
-* _PCODE_: unique code for each project
-* _SITE_: Typically a cluster of point count stations
-* _STN_: individual point count survey location
-* _SS_: compound key comprised of PCODE:SITE:STN
-* _ROUND_: If multiple visits to the same location, typically on different days.
-* _PKEY_: compound key -->  PCODE:SITE:STN:YY:ROUND
-* _METHOD_: The survey method (survey distance, duration); usually but not always consistent within a PCODE.
-* _obs_: Identity of the survey observer.
-
-![ ^^^ Image. BBS, Atlas (BCCA), and KMART (Kathy Martin)'s data, as an example of PCODE, SITE, and STN. Different coloured dots are from different projects (PCODEs). Kathy Martin's data (KMART) has clusters of stations in different sites (SITE), which are labelled KNIFEAFF, KNIFE7M, etc. Within (SITE) clusters are individual stations (STN). The combination of PCODE:SITE:STN makes up SS, which is a  unique ID corresponding to a given location indicated by xy coordinates](../output/KathyMartinSITEdemo.jpg)
-
-``` {r load.pkey}
-pkey <- read.csv("data/BC_COFI_PKEY.txt")
-kable(rbind(head(pkey), tail(pkey)), row.names=F)
-unique(pkey$METHOD)
-```
-
-**Checking for Missing Data**
-
-``` {r}
-kable(as.data.frame(do.call(rbind,lapply(pkey, function(x) {sum(is.na(x))}))), caption="Number of missing values per column")
-kable(as.data.frame(do.call(rbind,lapply(pkey, function(x) {length(unique(x))}))), caption="Number unique values per column")
-nrow(pkey)
-length(unique(pkey$PKEY))
-```
-
-``` {r}
-pkey$StartTime[pkey$StartTime == ""] <- NA #if start time is blank, make "NA"
-
-pkey$Missing_StartTime <- NA
-pkey$Missing_StartTime[!is.na(pkey$StartTime)] <- "NOT missing Sampling Date"
-
-pkey$Missing_HR_MIN <- NA
-pkey$Missing_HR_MIN[!(is.na(pkey$HR) & is.na(pkey$MIN))] <- "NOT missing Start Time"
-
-pkey$Missing_SamplingDate <- NA
-pkey$Missing_SamplingDate[!(is.na(pkey$MM) | is.na(pkey$DD))] <- "NOT missing Sampling Date"
-```
-
-**Some Checks**
-
-``` {r}
-unique(pkey[pkey$Missing_SamplingDate == "NOT missing Sampling Date",]$DD)
-unique(pkey[pkey$Missing_SamplingDate == "NOT missing Sampling Date",]$MM)
-```
-
-**ERROR NOTICED** - I'm pretty sure no surveys were done in Nov and Dec, so this probably indicates a switch in MM and DD for some sites. Time to track down which ones 
-
-``` {r}
-pkey$MM.old <- pkey$MM
-pkey$DD.old <- pkey$DD
-pkey <- pkey[order(pkey$YYYY, pkey$SS),]
-
-kable(rbind(head(pkey[pkey$PCODE %in% "GMSMON15", c("PCODE", "SS", "YYYY", "MM", "DD", "MM.old")], 10), tail(pkey[pkey$PCODE %in% "GMSMON15", c("PCODE", "SS", "YYYY", "MM", "DD", "MM.old")], 10)), row.names=F)
-
-pkey$DD[pkey$PCODE %in% "GMSMON15" & pkey$YYYY == "2012"] <- pkey$MM.old[pkey$PCODE %in% "GMSMON15" & pkey$YYYY == "2012"] 
-
-pkey$MM[pkey$PCODE %in% "GMSMON15" & pkey$YYYY == "2012"] <-
-  pkey$DD.old[pkey$PCODE %in% "GMSMON15" & pkey$YYYY == "2012"]
-
-kable(rbind(head(pkey[pkey$PCODE %in% "GMSMON15" & pkey$YYYY == "2012",c("PCODE", "SS", "YYYY", "MM", "DD")]),
-            tail(pkey[pkey$PCODE %in% "GMSMON15" & pkey$YYYY == "2012",c("PCODE", "SS", "YYYY", "MM", "DD")])), row.names=F)
-unique(pkey$MM)
-```
-
-Alright, so that fixed the obvious date issues. Let's look at some other potential data problems. 
-
-``` {r}
-pkey$DATE <- as.Date(paste(pkey$YYYY, pkey$MM, pkey$DD, sep="/"))
-```
-
-**Notes**
-
-* The pkey table has `r nrow(pkey)` rows covering `r length(unique(pkey$SS))` SS from `r length(unique(pkey$SITE))` sites over `r length(unique(pkey$PCODE))` projects. This corresponds to `r length(unique(pkey$PKEY))` unique PKEYS
-* The earliest point count was done in `r min(pkey$YYYY)`.
-* Sometimes the addition of WSI data added projects we already had from the Atlas. So we need to look for duplicated locations and years to remove those duplicates.
-
-#### Get method details (MaxDur, MaxDist, etc) from proj summary table and method code tables
-
-
-1. **National_Proj_Summary_V4_2015.csv**
-
-```{r, load.proj.summary}
-projs <- read.csv("data/National_Proj_Summary_V4_2015.csv", header=T)
-colnames(projs)[which(colnames(projs) == "Method")] <- "METHOD" #change colname
-projs$Maxdist <- toupper(projs$Maxdist)
->>>>>>> master
 
 kable(head(projs[c("PCODE", "METHOD", "DURMETH", "DISTMETH", "ChangeMethod", "MaxDuration", "Maxdist")]), row.names=F)
 ```
+
 
 **Checking for Missing Data**
 
@@ -341,6 +102,8 @@ rm(projs)
 
 **ERROR NOTICED** - Some of the new projects don't have max dist and max duration in their tables
 
+* LONG-TERM ACTION: Inform Trish of inconsistencies
+* SHORT-TERM ACTION: Correct them myself manually, based on a best guesses
 * Correction: I referred back to the Access database to update the project summary table accordingly
 * Now reload the project summary with manual correction
 
@@ -839,4 +602,4 @@ kable(method.stats, row.names=F)
 
 * Clean up VRI data
 
->>>>>>> master
+

@@ -28,6 +28,11 @@ On Nov 30, 2017, Trish provided me with the Access Database of BAM's avian data:
 2. **BC_COFI_PKEY.txt**
 3. **BC_COFI_POINTCOUNT.txt**
 
+**OFFSET-REQUIREMENTS**
+
+* To calculate the Solymos et al 2013 style offsets (correcting for survey method, species availability, species perceptability), we need the following location-specific details: 
+    * 
+
 This script does the following
 
 * Look for and eliminate duplications
