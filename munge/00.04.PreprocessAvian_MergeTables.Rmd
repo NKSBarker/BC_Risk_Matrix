@@ -1,0 +1,73 @@
+---
+title: ""
+author: "Nicole Barker"
+date: "Last run: Feb 1, 2018"
+output: 
+  word_document:
+    reference_docx: ../styles/ReportFormat_1.docx
+---
+## Script Abstract
+
+One of a series of scripts that quality-checks, corrects,  pre-processes, and merges the various tables from BAM's Avian Database. 
+
+This script 
+
+**SCRIPT OUTPUTS:**
+
+1. **
+
+## Background
+On Nov 30, 2017, Trish provided me with the Access Database of BAM's avian data: COFI_BC_NOV30_2017.accdb. Three tables relate to survey method, one to behaviour, 
+
+**FILES**
+
+
+**OFFSET-REQUIREMENTS**
+
+* To calculate the Solymos et al 2013 style offsets (correcting for survey method, species availability, species perceptability), we need the following details: 
+    * XY coordinates (from SS table)
+    * time zone (from SS table)
+    * tree cover (tree; TREE) at point count location (from SS table)
+    * land cover class (NALCMS05) at point count location (from SS table)
+    * land cover class (LCC2; LCC4) at point count location (derived from NALCMS)
+    * Maximum Duration (MaxDuration; MAXDUR) of survey (from method table)
+    * Maximum Distance (Masdist; MAXDIS) of survey (from method table)
+    * Date of year (YYYY MM and DD) (from PKEY table)
+    * Days since local spring (DSLS; derived from????
+    * Time since sunrise (TSSR; derived from survey time andtime zone)
+    * species (SPP) (from point count data table)
+    
+    PKEY
+    TSSR
+    JDAY
+    MAXDUR
+    MAXDIS
+    
+    TREE
+    TREE3
+    HAB_NALC1
+    HAB_NALC2
+    SPRING
+    MDT_offset (derived from time zone)
+    srise (derived from sunriset function and XY coordinates)
+    DSLS (derived from JULIAN & SPRING)
+    
+    
+
+This script does the following
+
+* 
+* 
+* 
+
+``` {r setup, echo=F, message=F, warning=F}
+require(knitr)
+opts_knit$set(root.dir = '..')
+```
+
+
+``` {r, warning=F, message=F}
+source("lib/Setup_NB_WorkPC.R")
+source("lib/Setup_anyComputer.R")
+```
+
