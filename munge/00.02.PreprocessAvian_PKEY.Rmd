@@ -1,7 +1,7 @@
 ---
 title: "Pre-process avian data at the PKEY level"
 author: "Nicole Barker"
-date: "Last run: Feb 2, 2018"
+date: "Last run: Feb 7, 2018"
 output: 
   word_document:
     reference_docx: ../styles/ReportFormat_1.docx
@@ -10,34 +10,17 @@ output:
 
 One of a series of scripts that quality-checks, corrects,  pre-processes, and merges the various tables from BAM's Avian Database. Removes duplicates. Performs some initial tests of patterns in avian data by survey method to help decide how to harmonize the data. 
 
-This script deals with SS (site)-level data, and adds in site-level covariates.
+This script deals with PKEY (survey instance)-level data. It does NOT add in survey-level covariates.
 
 **SCRIPT OUTPUTS:**
 
-1. **data.table in RData file xy.ss.covar.RData (see cache folder on Dropbox)**
-2. **csv in output folder in repo for sharing with Trish (or others) (see output folder on Dropbox)**
+1. **data.table in RData file XXXX (see cache folder on Dropbox)**
+2. **csv XXXX (see output folder on Dropbox)**
 3. **docx file with text and code snippets plus inline output (written directly to my repo, but ignored by Git. I'll need to copy over manually to Dropbox for sharing)**
 
 
 ## Background
-On Nov 30, 2017, Trish provided me with the Access Database of BAM's avian data: COFI_BC_NOV30_2017.accdb. I exported the 3 tables based on BAM's standard data format.
-
-**FILES**
-
-1. **BC_COFI_XY.csv**
-2. **BC_COFI_PKEY.txt**
-3. **BC_COFI_POINTCOUNT.txt**
-
-**OFFSET-REQUIREMENTS**
-
-* To calculate the Solymos et al 2013 style offsets (correcting for survey method, species availability, species perceptability), we need the following location-specific details: 
-    * 
-
-This script does the following
-
-* Look for and eliminate duplications
-* Correct any errors noticed during pre-processing
-* Save a pre-processed table of SS-level data for further processing/use
+On Nov 30, 2017, Trish provided me with the Access Database of BAM's avian data: COFI_BC_NOV30_2017.accdb. 
 
 The BAM Database is hierarchical, with primary keys for each table compounding upon each other in the various tables. 
 It's useful to look at a map to understand how the column names correspond to point count survey protocols/sampling design.  Kathy Martin's data represents a good example. 
@@ -53,6 +36,27 @@ It's useful to look at a map to understand how the column names correspond to po
 
 ![ ^^^ Image. BBS, Atlas (BCCA), and KMART (Kathy Martin)'s data, as an example of PCODE, SITE, and STN. Different coloured dots are from different projects (PCODEs). Kathy Martin's data (KMART) has clusters of stations in different sites (SITE), which are labelled KNIFEAFF, KNIFE7M, etc. Within (SITE) clusters are individual stations (STN). The combination of PCODE:SITE:STN makes up SS, which is a  unique ID corresponding to a given location indicated by xy coordinates](../images/KathyMartinSITEdemo.jpg)
 
+**OFFSET-REQUIREMENTS**
+
+* To calculate the Solymos et al 2013 style offsets (correcting for survey method, species availability, species perceptability), we need the following location-specific details: 
+    * Maximum Duration (MaxDuration; MAXDUR) of survey (from method table)
+    * Maximum Distance (Masdist; MAXDIS) of survey (from method table)
+    * Julien date (derived from YYYY MM and DD from PKEY table)
+    * Days since local spring (DSLS; derived from????
+    * Time since sunrise (TSSR; derived from survey time and time zone offset (MDT_offset))
+
+
+**FILES WORKED WITH IN THIS SCRIPT**
+
+1. **BC_COFI_PKEY.txt**
+
+This script does the following
+
+* 
+* 
+* 
+
+
 ``` {r setup, echo=F, message=F, warning=F}
 require(knitr)
 opts_knit$set(root.dir = '..')
@@ -64,25 +68,11 @@ source("lib/Setup_NB_WorkPC.R")
 source("lib/Setup_anyComputer.R")
 ```
 
-### 2. Sampling Occasions: *BC_COFI_PKEY.txt*
-The BAM Database is hierarchical, with primary keys for each table compounding upon each other in the various tables. 
-It's useful to look at a map to understand how the column names correspond to point count survey protocols/sampling design.  Kathy Martin's data represents a good example. 
-
-* _PCODE_: unique code for each project
-* _SITE_: Typically a cluster of point count stations
-* _STN_: individual point count survey location
-* _SS_: compound key comprised of PCODE:SITE:STN
-* _ROUND_: If multiple visits to the same location, typically on different days.
-* _PKEY_: compound key -->  PCODE:SITE:STN:YY:ROUND
-* _METHOD_: The survey method (survey distance, duration); usually but not always consistent within a PCODE.
-* _obs_: Identity of the survey observer.
-
-![ ^^^ Image. BBS, Atlas (BCCA), and KMART (Kathy Martin)'s data, as an example of PCODE, SITE, and STN. Different coloured dots are from different projects (PCODEs). Kathy Martin's data (KMART) has clusters of stations in different sites (SITE), which are labelled KNIFEAFF, KNIFE7M, etc. Within (SITE) clusters are individual stations (STN). The combination of PCODE:SITE:STN makes up SS, which is a  unique ID corresponding to a given location indicated by xy coordinates](../output/KathyMartinSITEdemo.jpg)
+### Sampling Occasions: *BC_COFI_PKEY.csv*
 
 ``` {r load.pkey}
-pkey <- read.csv("data/BC_COFI_PKEY.txt")
+pkey <- data.table(read.csv(paste0(droproot, "data/BC_COFI_PKEY.csv"), header=T))
 kable(rbind(head(pkey), tail(pkey)), row.names=F)
-unique(pkey$METHOD)
 ```
 
 **Checking for Missing Data**
@@ -93,6 +83,74 @@ kable(as.data.frame(do.call(rbind,lapply(pkey, function(x) {length(unique(x))}))
 nrow(pkey)
 length(unique(pkey$PKEY))
 ```
+
+**Notes**
+
+* Some PKEYs are missing: MM, DD, HR, MIN info.
+* ACTION: Long-term: Suggest Trish check into date fields to ensure complete info is available before importing up to SQL server
+* ACTION: Short-term: Manually fix dates from the csv file using Excel.
+
+### Sampling Occasions: *BC_COFI_PKEY-manuallyfixed.csv*
+
+``` {r load.pkey}
+pkey <- data.table(read.csv(paste0(droproot, "data/BC_COFI_PKEY-manuallyfixed.csv"), header=T))
+kable(rbind(head(pkey), tail(pkey)), row.names=F)
+```
+
+**Checking for Missing Data**
+
+Convert blank and 0 time and date values to NAs
+``` {r}
+pkey$date_FIXED[pkey$date_FIXED == ""] <- NA
+pkey$time_FIXED[pkey$time_FIXED == ""] <- NA
+pkey$StartTime[pkey$StartTime == ""] <- NA
+pkey$mm.dd.yyy[pkey$mm.dd.yyy == ""] <- NA
+pkey$HR[pkey$HR == 0] <- NA
+pkey$HR[pkey$MIN == 0] <- NA
+pkey$obs[pkey$obs == ""] <- NA
+```
+
+``` {r}
+kable(as.data.frame(do.call(rbind,lapply(pkey, function(x) {sum(is.na(x))}))), caption="Number of missing values per column")
+kable(as.data.frame(do.call(rbind,lapply(pkey, function(x) {length(unique(x))}))), caption="Number unique values per column")
+nrow(pkey)
+length(unique(pkey$PKEY))
+```
+
+Fix date and time field format
+``` {r}
+DD <- with(pkey, paste0(date_FIXED, " ", time_FIXED, ":00"))
+DD <- strptime(DD, "%m/%e/%Y %H:%M:%S")
+pkey$DATE <- DD
+```
+
+Add Julian day
+``` {r}
+pkey$JULIAN <- DD$yday # this is kept as original
+pkey$JDAY <- DD$yday / 365
+summary(pkey$JDAY)
+hist(pkey$JULIAN)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ``` {r}
 pkey$StartTime[pkey$StartTime == ""] <- NA #if start time is blank, make "NA"
