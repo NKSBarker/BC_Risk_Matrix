@@ -121,7 +121,8 @@ Fix date and time field format
 ``` {r}
 DD <- with(pkey, paste0(date_FIXED, " ", time_FIXED, ":00"))
 DD <- strptime(DD, "%m/%e/%Y %H:%M:%S")
-pkey$DATE <- DD
+DDdf <- data.frame(DATE=DD)
+pkey$DATETIME <- DDdf
 ```
 
 Add Julian day

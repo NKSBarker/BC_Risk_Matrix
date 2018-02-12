@@ -6,6 +6,7 @@ require(data.table)
 require(stringr)
 require(reshape2)
 require(ggplot2)
+require(maptools)
 #require(rdrop2)
 
 # set a CRAN mirror
