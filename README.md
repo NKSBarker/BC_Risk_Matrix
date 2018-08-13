@@ -2,6 +2,12 @@
 
 Welcome to Nicole's BC models built in collaboration with Canfor and West Fraser!
 
+This series of scripts is intended to help anyone replicate Nicole's analyses if they have: 
+1. A Risk Matrix
+2. Bird data for the region the risk matrix covers
+
+# More details
+
 BAM (rep: Nicole Barker, supervised by Erin Bayne) was recruited to collaborate 
 on a project with BC forest products companies (reps: Kari Stuart-Smith of Canfor 
 and Laura Trout of West Fraser), and CWS (rep: Mark Drever). 
