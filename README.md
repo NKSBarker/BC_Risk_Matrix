@@ -67,7 +67,9 @@ G. Matrix derivation
 
 
 
+**Note for Lionel on August 20, 2018: Right now I'm providing cleaned scripts for D, E, F, and G so you can replicate the BC analyses in AB. I'll provide RData files of pre-manipulated, pre-checked data so you can test my scripts and see how they work. Then you can adapt for your AB datafiles**
 
+**To that end, Lionel, you should skip right to folder D**
 
 
 
