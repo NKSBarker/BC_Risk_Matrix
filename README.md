@@ -66,6 +66,7 @@ F. Bird-habitat density model (BRT)
 G. Matrix derivation
 
 
+Ideally, if you have the data, you should be able to replicate Nicole's analyses by proceeding from A through G, which are all saved in separate sub-folders. This workflow is as yet untested (Aug 20, 2018). 
 
 **Note for Lionel on August 20, 2018: Right now I'm providing cleaned scripts for D, E, F, and G so you can replicate the BC analyses in AB. I'll provide RData files of pre-manipulated, pre-checked data so you can test my scripts and see how they work. Then you can adapt for your AB datafiles**
 

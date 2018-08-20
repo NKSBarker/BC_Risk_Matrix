@@ -1,0 +1,288 @@
+---
+title: "Bird Density Patterns"
+author: "Nicole Barker"
+output:
+  html_document: default
+  word_document:
+    reference_docx: ../RmdStyles/ReportFormat_1.docx
+---
+
+# =================
+# UNFINISHED STUFF
+# STILL TO DO: FIND A WAY OF PLOTTING THE ACTUAL RANK (FROM KARI'S MATRIX) ABOVE EACH BARPLOT TO ENABLE EASY COMPARISON.
+# aLSO, PLOT RAW COUNTS AGAINST FOREST ATTRIBUTES TO COMPARE TO THE ESTIMATED MEAN DENSITY
+# =================
+
+
+
+**Objective: Summarize how observed bird density varies across forest attributes**
+
+We need to convert observed Counts to predicted Density only to correct for survey method and detectability. We can't describe patterns in counts because it is confounded with different contributed datasets. 
+
+**Desired result**: A density estimate for each forest stand type that has at least one point count survey
+
+**Stats hold up: I'm not sure of the best way to summarize this information, given the nested design of our survey. I'm worried about pseudoreplication.** 
+
+**Concerns:**
+
+* Multiple surveys for a given location (visits within PKEY; PKEYs per SS)
+* Multiple locations for a given stand (SS per ObjectID)
+* Multiple stands sampled for a given stand type (ObjectID for ForId)
+
+I think I should accommodate this structure when I calculate summary statistics, figures, etc. But I'm not sure how.
+
+*As of August 20 2018, I'm a bit worried about whether I'm running the right analyses. But for the purposese of cleaning up my scripts, I'm going to continue forth with the headings and code. I will have a meeting with Lionel (and others) at some point and update these scripts with decisions made based on how to adjust for pseudoreplication.*
+
+
+``` {r setup, echo=F, message=F, warning=F}
+require(knitr)
+require(ggplot2)
+opts_knit$set(root.dir = '..')
+rm(list=ls())
+getwd()
+```
+
+``` {r}
+source("Rfunctions/UsefulFunctions.R")
+```
+
+#### Method: Poisson GLM with 
+* Forest stand type as predictor
+* Count as response variable
+* TOTA offset as offset 
+
+Count + offset ~ ForID
+
+#### Dataset requirements
+
+1. mastermatrix
+2. ranks
+3. bird observations
+4. QPAD offsets
+
+#### Data subset:
+
+Those stand types that were sampled by at least one bird point count survey.
+
+## Step 1. Load data
+
+####1. mastermatrix
+
+Contains all possible forest stand type combinations, based on factorial combination of all levels of all 4 attributes. The combination of forest attributes is the unique ForID for a stand type.
+
+```{r load.matrixTemplate, echo=T, eval=T}
+load("RDataFiles/mastermatrix.RData")
+kable(head(mastermatrix, 10), row.names = F)
+matrix.qs <- mastermatrix
+```
+
+
+####2. ranks
+
+Contains stand ranks assigned to ForID. Note that ranks were previously quality-checked. These are the final ranks. 
+
+``` {r}
+load("RDataFiles/finalRanks.RData")
+ranks.qs <- ranks
+
+kable(t(table(ranks$FinalRank)))
+```
+
+As seen above, this file contains text-based ranks that won't work in a GLM. Convert to numeric, switching all text-based ranks to NA. The "0 or 3" is complicated and not worth explaining. We just convert it to NA, indicating 'unranked.
+
+``` {r}
+ranks$FinalRank <- as.numeric(as.character(ranks$FinalRank))
+
+kable(head(ranks, 10))
+kable(t(table(ranks$FinalRank)))
+```
+
+
+####3. bird observations
+
+Bird data from BAM avian dataset available for sampled forest stands:
+
+1) SS: sampling location; point count location within a forest stand
+2) PKEY: unique survey identity
+3) Count: sum of birds per survey (PKEY)
+4) ForID: unique forst stand type within which the SS is located
+
+
+```{r load.pointcountloc.data, echo=T, eval=T}
+load("RDataFiles/totalBirds.RData")
+qs.birds <- totalBirds
+
+totalBirds$SS <- as.character(totalBirds$SS) # convert SS (survey location) to character
+
+kable(head(totalBirds, 10))
+```
+
+
+####4. QPAD offsets
+
+Offsets developed using QPAD approach, for "total species". Corrects for survey methodology but not individual species' singing rates or EDRs. Treats all species as one highly-variable species. 
+
+
+``` {r}
+load("RDataFiles/TOTA_offsets-v3_2016-12-01.RData")
+qs.off <- OFF
+
+kable(head(OFF, 10))
+
+OFF <- as.data.frame(OFF)
+OFF$PKEY <- row.names(OFF)
+kable(head(OFF, 10), row.names=F)
+
+```
+
+
+## Step 2. Combine datasets and switch column classes as necessary
+
+#### Associate offset with PKEY
+``` {r}
+totalBirds <- merge(totalBirds, OFF, by="PKEY", all.x=T) # merge by PKEY; keep only those PKEY in bird dataset.
+```
+
+#### Associate rank with ForID
+``` {r}
+mastermatrix <- merge(mastermatrix, ranks, by="ForID", all=T) # merge by ForID. Keep all ForIDs for now (even unranked)
+```
+
+#### Associate bird data with ForID
+``` {r}
+totalBirds <- merge(totalBirds, mastermatrix, by="ForID", all.x=T) # merge by ForID. Keep only sampled ForIDs (i.e., those with survey data)
+totalBirds <- totalBirds[c("ForID", "BEC", "SpeciesGroup", "ForAge", "ForHt", "SS", "PKEY", "Count", "TOTA", "FinalRank")]
+
+kable(head(totalBirds, 20), row.names=F)
+```
+
+#### Clean up and switch classes as necessary
+
+``` {r}
+unique(totalBirds$ForAge) # already an ordered factor
+unique(totalBirds$ForHt) # already an ordered factor
+
+totalBirds$BEC <- factor(totalBirds$BEC) # eliminates missing BEC levels
+unique(totalBirds$BEC)
+
+totalBirds$SpeciesGroup <- factor(totalBirds$SpeciesGroup) # eliminates missing speciesgroup levels
+unique(totalBirds$SpeciesGroup)
+```
+
+There are `r length(unique(totalBirds$ForID))` sampled forest stand types going into this analysis. 
+
+## Step 3. Calculate mean density per ForID, rather than count 
+
+If we want to plot anything to interpret our results, we can't just plot count beause it is not corrected for method/detectability. 
+
+So here we're just calculating the mean bird density per ForID (forest stand type).
+
+Forest stand type is a factor with `r length(unique(totalBirds$ForID))` levels
+
+**May adjust this based on pseudoreplication discussion above. e.g., using individual stand polygon (not stand TYPE) as a random factor**
+
+``` {r}
+load("RDataFiles/fit.dens.forid_tot.RData") # loads the saved results if it's already run and saved
+
+if (!exists("fit.dens.forid_tot")==TRUE) { #conditional statement; won't run if the file was already loaded from RData
+  fit.dens.forid_tot <- glm(Count ~ ForID-1, family=poisson, data=totalBirds, offset=TOTA)  # run if not already run and saved
+  save(fit.dens.forid_tot, file="RDataFiles/fit.dens.forid_tot.RData") # save it so i don't need to run again. 
+}
+
+```
+
+#### Prediction: Estimate the number of birds in each forest stand type, based on the model. 
+
+Only predicts to the forest stands we sampled. `r length(unique(totalBirds$ForID))` unique stand types.
+Basically just takes the mean of all samples within a forest stand type and adjusts by the offset. All stands of the same type will have the same predicted bird density. No covariates in the above model.
+
+``` {r}
+newdat <- totalBirds[c("ForID")]
+newdat$TOTA <- 0 # set offset to zero so the prediction is density, not observed count
+totalBirds$PredDens_ForID <- predict(fit.dens.forid_tot, newdata=newdat, type="response")
+```
+
+##### Double-check that these predictions make sense. 
+
+Expectation: All point counts within the same forest stand type should have the same expected density, if I understand this analysis correctly. 
+
+``` {r}
+testset <- totalBirds[totalBirds$ForID %in% "SBS_SBPS.SwB_Decid.31_80.2",]
+unique(testset$PredDens_ForID)
+unique(testset$Count)
+testset <- totalBirds[totalBirds$ForID %in% "IDF.SwB.121_250.4+",]
+unique(testset$PredDens_ForID)
+unique(testset$Count)
+```
+
+Expectation is true for those example Forest stand types, despite their observed counts being different. 
+
+# Plot Patterns: Visualize relationships between age/height and bird density (in sampled stands)
+
+*As of August 20 2018, I'm a bit worried about whether I'm running the right analyses. Right now this function plots a density diagram of all rows in the totalBirds file. I think each row corresponds to an individual PKEY. There can be more than one PKEY in a given forest stand polygon. So I'm overrepresenting stands that have been sampled more. Nevermind the fact that some stand TYPES (forID) have been sampled more than others. I suspect I'll need to take a subset of this table and redo the plots below. *
+
+
+``` {r}
+ggplot(totalBirds, aes(x=as.factor(FinalRank), y=PredDens_ForID, group=as.factor(FinalRank), fill=as.factor(FinalRank))) + geom_boxplot() + xlab("Rank") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+
+ggplot(totalBirds, aes(x=as.factor(FinalRank), y=PredDens_ForID, group=as.factor(FinalRank), col=as.factor(FinalRank), fill=as.factor(FinalRank))) + geom_violin() + myfacettheme + xlab("Rank") + ylab("Mean Density per Forest Stand Type")
+```
+
+#### Bird density as a function of forest height and age
+
+Across all BEC and tree species groups.
+Boxplot and violin plot show the same information. 
+
+``` {r eval=T}
+ggplot(totalBirds, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+
+ggplot(totalBirds, aes(x=ForAge, y=PredDens_ForID, fill=ForHt, col=ForHt)) + geom_violin() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+```
+
+
+### BEC-specific relationships 
+
+Depict pattern in bird density as a function of forest age and height, separated by different BECs.
+
+``` {r eval=T}
+tota.bec <- split(totalBirds, totalBirds$BEC)
+
+lapply(tota.bec, function(x) {
+  ggplot(x, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~BEC) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+})
+  
+lapply(tota.bec, function(x) {
+  ggplot(x, aes(x=ForAge, y=PredDens_ForID, col=ForHt, fill=ForHt)) + geom_violin()  + facet_wrap(~BEC)+ xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+})
+```
+
+### Patterns for different leading tree species groups 
+
+Depict pattern in bird density as a function of forest age and height, separated by different leading tree species groups
+
+``` {r eval=T}
+tota.sg <- split(totalBirds, totalBirds$SpeciesGroup)
+
+lapply(tota.sg, function(x) {
+  ggplot(x, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~SpeciesGroup) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+})
+  
+lapply(tota.sg, function(x) {
+  ggplot(x, aes(x=ForAge, y=PredDens_ForID, col=ForHt, fill=ForHt)) + geom_violin() + facet_wrap(~SpeciesGroup)+ xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+})
+```
+
+
+### Patterns for different combinations of BECs and leading tree species groups 
+
+``` {r, eval=T}
+totalBirds$BEC.Species <- with(totalBirds, paste(BEC, SpeciesGroup, sep="."))
+tota.becsg <- split(totalBirds, totalBirds$BEC.Species)
+
+lapply(tota.becsg, function(x) {
+  ggplot(x, aes(x=ForAge, y=PredDens_ForID, fill=ForHt, col=ForHt, group=ForHt)) + geom_point(size=3, position=position_dodge(width=0.8)) + facet_wrap(~BEC.Species)+ xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+})
+  
+```
+
+
