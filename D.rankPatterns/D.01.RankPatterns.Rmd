@@ -13,8 +13,6 @@ Describe how the forest stand ranks are distributed across forest stands, and in
 
 
 ``` {r setup, echo=F, message=F, warning=F}
-require(knitr)
-require(ggplot2)
 opts_knit$set(root.dir = '..')
 knitr::opts_chunk$set(
   fig.path = "figures/"
@@ -83,6 +81,8 @@ summary(areas$MyArea)
 ``` {r}
 mastermatrix <- merge(mastermatrix, ranks, by="ForID", all=T) # merge by ForID. Keep all ForIDs for now (even unranked)
 mastermatrix <- merge(mastermatrix, areas, by="ForID", all=T) # merge by ForID. Keep all ForIDs for now (even with 0 area)
+mastermatrix.qs <- mastermatrix
+mastermatrix <- mastermatrix[c("ForID", "BEC", "SpeciesGroup", "ForAge", "ForHt", "FinalRank", "MyArea")]
 kable(head(mastermatrix, 10))
 ```
 
@@ -124,19 +124,29 @@ Here we're aggregating ranks across different combinations of forest attributes,
 
 ``` {r}
 rank.ageheight <- aggregate(mastermatrix$FinalRank ~ mastermatrix$ForAge + mastermatrix$ForHt, FUN=mean)
+colnames(rank.ageheight) <- c("ForAge", "ForHt", "FinalRank")
 ```
 
 #### Aggregate 2. Age and height and BEC zone (averagd over SpeciesGroup)
 
 ``` {r}
 rank.ageheightbec <- aggregate(mastermatrix$FinalRank ~ mastermatrix$ForAge + mastermatrix$ForHt + mastermatrix$BEC, FUN=mean)
+colnames(rank.ageheightbec) <- c("ForAge", "ForHt", "BEC", "FinalRank")
 ```
 
 #### Aggregate 3. Age and height and species group (averaged over BEC Zone)
 
 ``` {r}
 rank.ageheightsg <- aggregate(mastermatrix$FinalRank ~ mastermatrix$ForAge + mastermatrix$ForHt + mastermatrix$SpeciesGroup, FUN=mean)
+colnames(rank.ageheightsg) <- c("ForAge", "ForHt", "SpeciesGroup", "FinalRank")
 ```
+
+Combine aggregated tables into one list for easyloading in future
+``` {r}
+rank.aggregates <- list(ageht=rank.ageheight, agehtbecrank=rank.ageheightbec, agehtsg=rank.ageheightsg)
+save(rank.aggregates, file="RDataFiles/summarizedRanks.RData")
+```
+
 
 # Rank distribution
 
