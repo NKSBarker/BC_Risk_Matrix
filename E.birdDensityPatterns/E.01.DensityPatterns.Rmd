@@ -222,11 +222,26 @@ Expectation is true for those example Forest stand types, despite their observed
 *As of August 20 2018, I'm a bit worried about whether I'm running the right analyses. Right now this function plots a density diagram of all rows in the totalBirds file. I think each row corresponds to an individual PKEY. There can be more than one PKEY in a given forest stand polygon. So I'm overrepresenting stands that have been sampled more. Nevermind the fact that some stand TYPES (forID) have been sampled more than others. I suspect I'll need to take a subset of this table and redo the plots below. *
 
 
+#### Density as a function of rank 
+
 ``` {r}
 ggplot(totalBirds, aes(x=as.factor(FinalRank), y=PredDens_ForID, group=as.factor(FinalRank), fill=as.factor(FinalRank))) + geom_boxplot() + xlab("Rank") + ylab("Mean Density per Forest Stand Type") + myfacettheme
 
 ggplot(totalBirds, aes(x=as.factor(FinalRank), y=PredDens_ForID, group=as.factor(FinalRank), col=as.factor(FinalRank), fill=as.factor(FinalRank))) + geom_violin() + myfacettheme + xlab("Rank") + ylab("Mean Density per Forest Stand Type")
 ```
+
+#### Absolute count as a function of rank
+
+Disclaimer that there may be patterns here related to sampling rather than any forest attribute. e.g., if projects that used the same survey method also tended to sample the same forest types, we have a systematic bias. 
+
+``` {r}
+ggplot(totalBirds, aes(x=as.factor(FinalRank), y=Count, group=as.factor(FinalRank), fill=as.factor(FinalRank))) + geom_boxplot() + xlab("Rank") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+
+ggplot(totalBirds, aes(x=as.factor(FinalRank), y=Count, group=as.factor(FinalRank), col=as.factor(FinalRank), fill=as.factor(FinalRank))) + geom_violin() + myfacettheme + xlab("Rank") + ylab("Mean Density per Forest Stand Type")
+
+```
+
+
 
 #### Bird density as a function of forest height and age
 
@@ -237,6 +252,18 @@ Boxplot and violin plot show the same information.
 ggplot(totalBirds, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
 
 ggplot(totalBirds, aes(x=ForAge, y=PredDens_ForID, fill=ForHt, col=ForHt)) + geom_violin() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+```
+
+
+#### Absolute count as a function of forest height and age
+
+Across all BEC and tree species groups.
+Boxplot and violin plot show the same information. 
+
+``` {r eval=T}
+ggplot(totalBirds, aes(x=ForAge, y=Count, fill=ForHt)) + geom_boxplot() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
+
+ggplot(totalBirds, aes(x=ForAge, y=Count, fill=ForHt, col=ForHt)) + geom_violin() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme
 ```
 
 
