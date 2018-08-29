@@ -46,7 +46,7 @@ To replicate these exact analyses on the same dataset Nicole used, you must acce
 
 #### Adapting these analyses for other dataset(s)
 
-If you want to apply these scripts to another dataset, you'll need to understand and modify the scripts. Nicole therefore suggest it is still helpful to access the data so you can test and understand what the scripts are meant to do. But it's probably not strictly necessary. Nicole has tried to note what types of data files are required for each script. 
+If you want to apply these scripts to another dataset, you'll need to understand and modify the scripts. Nicole thinks you may want to access the data so you can test and understand what the scripts are meant to do, but it's probably not strictly necessary. Nicole has tried to note what types of data files are required for each script. 
 
 1. Fork the Repo into your own GitHub profile to access scripts
 
