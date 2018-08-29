@@ -46,7 +46,7 @@ To replicate these exact analyses on the same dataset Nicole used, you must acce
 
 #### Adapting these analyses for other dataset(s)
 
-If you want to apply these scripts to another dataset, you must access the scripts. It *may* be helpful to access the data so you can test and understand what the scripts are meant to do. But it's probably not strictly necessary. Nicole has tried to note what types of data files are required for each script. 
+If you want to apply these scripts to another dataset, you'll need to understand and modify the scripts. Nicole therefore suggest it is still helpful to access the data so you can test and understand what the scripts are meant to do. But it's probably not strictly necessary. Nicole has tried to note what types of data files are required for each script. 
 
 1. Fork the Repo into your own GitHub profile to access scripts
 
@@ -60,15 +60,16 @@ Nicole's workflow breaks down into the following major steps.
 A. Data quality checking
 B. Data manipulation & description
 C. Sampling gap analysis
-D. Evaluation of predictive ability of ranking matrix
+D. Description of rank patterns with forest attributes
 E. Description of bird density patterns
-F. Bird-habitat density model (BRT)
-G. Matrix derivation
+F. Evaluation of predictive ability of ranking matrix
+G. Bird-habitat density model (BRT)
+H. Matrix derivation
 
 
 Ideally, if you have the data, you should be able to replicate Nicole's analyses by proceeding from A through G, which are all saved in separate sub-folders. This workflow is as yet untested (Aug 20, 2018). 
 
-**Note for Lionel on August 20, 2018: Right now I'm providing cleaned scripts for D, E, F, and G so you can replicate the BC analyses in AB. I'll provide RData files of pre-manipulated, pre-checked data so you can test my scripts and see how they work. Then you can adapt for your AB datafiles**
+**Note for Lionel on August 20, 2018: Right now I'm providing cleaned scripts for D-H so you can replicate the BC analyses in AB. I'll provide RData files of pre-manipulated, pre-checked data so you can test my scripts and see how they work. Then you can adapt for your AB datafiles**
 
 **To that end, Lionel, you should skip right to folder D**
 
