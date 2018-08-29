@@ -13,6 +13,7 @@ Describe how the forest stand ranks are distributed across forest stands, and in
 
 
 ``` {r setup, echo=F, message=F, warning=F}
+require(knitr)
 opts_knit$set(root.dir = '..')
 knitr::opts_chunk$set(
   fig.path = "figures/"

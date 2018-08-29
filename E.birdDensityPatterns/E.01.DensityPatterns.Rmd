@@ -14,17 +14,28 @@ We need to convert observed Counts to predicted Density only to correct for surv
 
 **Desired result**: A density estimate for each forest stand type that has at least one point count survey
 
-**Stats hold up: I'm not sure of the best way to summarize this information, given the nested design of our survey. I'm worried about pseudoreplication.** 
+**Assumptions:** A number of assumptions are made, as a result of the unbalanced sample 'design' within the BAM dataset. 
 
-**Concerns:**
+Consider this: 
+* Multiple surveys within a year for a given location (PKEY within SS:YEAR)
+* Multiple years for a given location (YEAR per SS)
+* Variable numbers of point count survey stations for a given stand (SS per ObjectID)
+* Multiple examples of stands on the landscape for a given stand type (ObjectID for ForId)
 
-* Multiple surveys for a given location (visits within PKEY; PKEYs per SS)
-* Multiple locations for a given stand (SS per ObjectID)
-* Multiple stands sampled for a given stand type (ObjectID for ForId)
+If we treat PKEY as the sampling unit, we see a) multiple sources of variation being crammed into one analysis; and b) pseudoreplication since some stands and stand types will have way more replicates (i.e., bird surveys) than others. 
 
-I think I should accommodate this structure when I calculate summary statistics, figures, etc. But I'm not sure how.
+Can we accommodate this nested structure when calculating summary statistics, figures, etc?
 
-*As of August 20 2018, I'm a bit worried about whether I'm running the right analyses. But for the purposese of cleaning up my scripts, I'm going to continue forth with the headings and code. I will have a meeting with Lionel (and others) at some point and update these scripts with decisions made based on how to adjust for pseudoreplication.*
+Some possible options
+
+1. Treat all PKEY as independent. 
+2. Subsample: Take one PKEY per SS. 
+3. Aggregate to stand: Average per stand across SS/PKEY becomes the DV
+4. Aggregate to stand type: Average per ForID across SS/PKEY becomes the DV. 
+5. Bootstrapped subsample: Take multiple weighted samples of data. SS is unit of replication. We choose a maximum number of SS per stand and randomly select from the available SS if there's more than that number. Within an SS, we choose a single PKEY. 
+
+This current script is a **DEMONSTRATION** only. Lionel and Nicole have not discussed which approach to take. So the below script uses all PKEYs, and treats them a independent replicates. So there is some pseudoreplication in that single survey locations are represented more than once. 
+
 
 ``` {r setup, echo=F, message=F, warning=F}
 require(knitr)
@@ -42,6 +53,9 @@ source("Rfunctions/UsefulFunctions.R")
 
 
 #### Method: Poisson GLM with 
+
+Mean model (no covariates) to get average bird density per stand type, correcting counts to density with QPAD offsets for "TOTAL species"
+
 * Forest stand type as predictor
 * Count as response variable
 * TOTA offset as offset 
@@ -107,14 +121,22 @@ Bird data from BAM avian dataset available for sampled forest stands:
 
 
 ```{r load.pointcountloc.data, echo=T, eval=T}
-load("RDataFiles/totalBirds.RData")
-totalBirds$ForID.qs <- totalBirds$ForID
+load("RDataFiles/TOTAlcount.per.PKEY.withForID.RData")
+colnames(TOTAlcount.per.PKEY.withForID)
+nrow(TOTAlcount.per.PKEY.withForID)
+length(unique(TOTAlcount.per.PKEY.withForID$PKEY))
+birds <- TOTAlcount.per.PKEY.withForID[!duplicated(TOTAlcount.per.PKEY.withForID),]
+birds <- birds[c("ForID", "PKEY", "Count")]
+
+pkey_pieces <- data.frame(str_split_fixed(birds$PKEY, ":", 5))
+colnames(pkey_pieces) <- c("PCODE", "SITE", "STN", "YY", "ROUND")
+pkey_pieces$YYYY <- substr(as.Date(pkey_pieces$YY, "%y"), 1,4)
+pkey_pieces$SS <- paste(pkey_pieces$PCODE, pkey_pieces$SITE, pkey_pieces$STN, sep=":")
+
+totalBirds <- cbind(birds, pkey_pieces)
 totalBirds$ForID <- as.character(totalBirds$ForID)
-qs.birds <- totalBirds
 
-totalBirds$SS <- as.character(totalBirds$SS) # convert SS (survey location) to character
-
-kable(rbind(head(totalBirds, 10), tail(totalBirds, 10)))
+kable(rbind(head(totalBirds, 10), tail(totalBirds, 10)), row.names = F)
 ```
 
 
@@ -157,11 +179,15 @@ mastermatrix <- merge(mastermatrix, ranks, by="ForID", all=T) # merge by ForID. 
 
 #### Associate bird data with ForID
 ``` {r}
-totalBirds <- merge(totalBirds, mastermatrix, by="ForID", all.x=T) # merge by ForID. Keep only sampled ForIDs (i.e., those with survey data)
+totalBirds <- merge(totalBirds, mastermatrix[c("ForID", "BEC", "SpeciesGroup", "ForAge", "ForHt", "FinalRank")], by="ForID", all.x=T) # merge by ForID. Keep only sampled ForIDs (i.e., those with survey data)
 totalBirds <- totalBirds[c("ForID", "BEC", "SpeciesGroup", "ForAge", "ForHt", "SS", "PKEY", "Count", "TOTA", "FinalRank")]
 
 kable(head(totalBirds, 20), row.names=F)
 ```
+
+* Number of rows in resultant data.frame: `r nrow(totalBirds)`
+* Number of unique PKEY: `r length(unique(totalBirds$PKEY))`
+* Number of unique ForID: `r length(unique(totalBirds$ForID))`
 
 #### Clean up and switch classes as necessary
 
@@ -188,6 +214,12 @@ mastermatrix$SpeciesGroup <- factor(mastermatrix$SpeciesGroup) # eliminates miss
 
 There are `r length(unique(totalBirds$ForID))` sampled forest stand types going into this analysis. 
 
+#### Save pre-cleaned dataset
+
+``` {r}
+save(totalBirds, file="RDataFiles/totalBirds_clean.RData")
+```
+
 ## Step 3. Calculate mean density per ForID, rather than count 
 
 If we want to plot anything to interpret our results, we can't just plot count beause it is not corrected for method/detectability. 
@@ -199,9 +231,12 @@ Forest stand type is a factor with `r length(unique(totalBirds$ForID))` levels
 **May adjust this based on pseudoreplication discussion above. e.g., using individual stand polygon (not stand TYPE) as a random factor**
 
 ``` {r}
-load("RDataFiles/fit.dens.forid_tot.RData") # loads the saved results if it's already run and saved
+if ('fit.dens.forid_tot.RData' %in% dir("RDataFiles")) {
+  load("RDataFiles/fit.dens.forid_tot.RData") # loads the saved results if it's already run and saved
+}
 
-if (!exists("fit.dens.forid_tot")==TRUE) { #conditional statement; won't run if the file was already loaded from RData
+
+if (exists("fit.dens.forid_tot")==FALSE) { #conditional statement; won't run if the file was already loaded from RData
   fit.dens.forid_tot <- glm(Count ~ ForID-1, family=poisson, data=totalBirds, offset=TOTA)  # run if not already run and saved
   save(fit.dens.forid_tot, file="RDataFiles/fit.dens.forid_tot.RData") # save it so i don't need to run again. 
 }
@@ -289,9 +324,9 @@ test <- rbind(totalBirds[colnames(dat4)], dat4) # combine real data with fake da
 
 
 ``` {r Fig.BirdDens_AgeHeight, fig.height=6, fig.width=7, dpi=150, eval=T}
-ggplot(test, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot(na.rm=FALSE) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 1)) + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
+ggplot(test, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot(na.rm=FALSE) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 9)) + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
 
-ggplot(test, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot(na.rm=FALSE) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme5 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 1)) + geom_point(data=rank.aggregates[[1]], aes(x=ForAge, y=FinalRank+20, col=ForHt), position=position_dodge(width=.75), size=4, show.legend = F) + geom_text(data=rank.aggregates[[1]], aes(x=ForAge, y=FinalRank+21, label=round(FinalRank,1)), position=position_dodge(width=0.75), size=3.1)  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") + geom_hline(yintercept=20) + geom_text(aes(x=1, y=26), label="Rank from Matrix", col="black", size=5)
+ggplot(test, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot(na.rm=FALSE) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme5 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 8)) + geom_point(data=rank.aggregates[[1]], aes(x=ForAge, y=FinalRank+19, col=ForHt), position=position_dodge(width=.75), size=4, show.legend = F) + geom_text(data=rank.aggregates[[1]], aes(x=ForAge, y=FinalRank+20, label=round(FinalRank,1)), position=position_dodge(width=0.75), size=3.1)  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") + geom_hline(yintercept=20) + geom_text(aes(x=1.05, y=26.5), label="Rank from Matrix", col="black", size=5)
 
 ggplot(totalBirds, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_violin() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
 ```
@@ -303,9 +338,9 @@ Across all BEC and tree species groups.
 Boxplot and violin plot show the same information. 
 
 ``` {r Fig.BirdCount_AgeHeight, fig.height=6, fig.width=7, dpi=150, eval=T}
-ggplot(totalBirds, aes(x=ForAge, y=Count, fill=ForHt)) + geom_boxplot() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
+ggplot(totalBirds, aes(x=ForAge, y=Count, fill=ForHt)) + geom_boxplot() + xlab("Forest Age") + ylab("Mean Count per Forest Stand Type") + myfacettheme2 + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
 
-ggplot(totalBirds, aes(x=ForAge, y=Count, fill=ForHt, col=ForHt)) + geom_violin() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
+ggplot(totalBirds, aes(x=ForAge, y=Count, fill=ForHt, col=ForHt)) + geom_violin() + xlab("Forest Age") + ylab("Mean Count per Forest Stand Type") + myfacettheme2 + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
 ```
 
 ``` {r}
@@ -349,8 +384,9 @@ tota.bec <- split(test, test$BEC)
 rank.agg.bec <- split(rankagg.agehtbec, rankagg.agehtbec$BEC)
 
 lapply(1:length(tota.bec), function(i) {
-  ggplot(tota.bec[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~BEC) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 1))   + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
-    ggplot(tota.bec[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~BEC) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme5 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 1)) + geom_point(data=rank.agg.bec[[i]], aes(x=ForAge, y=FinalRank+20, col=ForHt), position=position_dodge(width=.75), size=4, show.legend = F) + geom_text(data=rank.agg.bec[[i]], aes(x=ForAge, y=FinalRank+21, label=round(FinalRank,1)), position=position_dodge(width=0.75), size=3.1)  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") + geom_hline(yintercept=20) + geom_text(aes(x=1, y=26), label="Rank from Matrix", col="black", size=5)
+  ggplot(tota.bec[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~BEC) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 9))   + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
+
+    ggplot(tota.bec[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~BEC) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme5 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 8)) + geom_point(data=rank.agg.bec[[i]], aes(x=ForAge, y=FinalRank+20, col=ForHt), position=position_dodge(width=.75), size=4, show.legend = F) + geom_text(data=rank.agg.bec[[i]], aes(x=ForAge, y=FinalRank+21, label=round(FinalRank,1)), position=position_dodge(width=0.75), size=3.1)  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") + geom_hline(yintercept=20) + geom_text(aes(x=1.05, y=26.5), label="Rank from Matrix", col="black", size=5)
 })
   
 lapply(tota.bec, function(x) {
@@ -400,15 +436,21 @@ tota.sg <- split(test, test$SpeciesGroup)
 rank.agg.sg <- split(rankagg.agehtsg, rankagg.agehtsg$SpeciesGroup)
 
 
-lapply(1:length(tota.sg), function(i) {
-  ggplot(tota.sg[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~SpeciesGroup) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 1))   + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
-    ggplot(tota.sg[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~SpeciesGroup) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme5 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 1)) + geom_point(data=rank.agg.sg[[i]], aes(x=ForAge, y=FinalRank+20, col=ForHt), position=position_dodge(width=.75), size=4, show.legend = F) + geom_text(data=rank.agg.sg[[i]], aes(x=ForAge, y=FinalRank+21, label=round(FinalRank,1)), position=position_dodge(width=0.75), size=3.1)  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") + geom_hline(yintercept=20) + geom_text(aes(x=1, y=26), label="Rank from Matrix", col="black", size=5)
+lapply(names(tota.sg), function(i) {
+  ggplot(tota.sg[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~SpeciesGroup) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 9))   + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
+
+    ggplot(tota.sg[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot() + facet_wrap(~SpeciesGroup) + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme5 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 8)) + geom_point(data=rank.agg.sg[[i]], aes(x=ForAge, y=FinalRank+20, col=ForHt), position=position_dodge(width=.75), size=4, show.legend = F) + geom_text(data=rank.agg.sg[[i]], aes(x=ForAge, y=FinalRank+21, label=round(FinalRank,1)), position=position_dodge(width=0.75), size=3.1)  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") + geom_hline(yintercept=20) + geom_text(aes(x=1.05, y=26.5), label="Rank from Matrix", col="black", size=5)
 })
 
 lapply(tota.sg, function(x) {
   ggplot(x, aes(x=ForAge, y=PredDens_ForID, col=ForHt, fill=ForHt)) + geom_violin()  + facet_wrap(~SpeciesGroup)+ xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
 })
 ```
+
+``` {r}
+rm(test, agehtsgcombos.missing, agehtsgcombos.possible, agehtsgcombos.sampled, tota.sg, rankagg.agehtsg, rank.agg.sg)
+```
+
 
 ### Patterns for different combinations of BECs and leading tree species groups 
 
@@ -417,16 +459,14 @@ lapply(tota.sg, function(x) {
 ``` {r}
 forid.possible <- unique(paste(mastermatrix$ForAge, mastermatrix$ForHt, mastermatrix$BEC, mastermatrix$SpeciesGroup, sep="_and_"))
 forid.sampled <- unique(paste(totalBirds$ForAge, totalBirds$ForHt, totalBirds$BEC, totalBirds$SpeciesGroup, sep="_and_"))
-forid.missing <- agehtsgcombos.possible[!agehtsgcombos.possible %in% agehtsgcombos.sampled]
+forid.missing <- forid.possible[!forid.possible %in% forid.sampled]
 
-dat2 <- data.frame(str_split_fixed(agehtsgcombos.missing, "_and_", 3))  # create dataframe for ForID with no bird data
-colnames(dat2) <- c("ForAge", "ForHt", "SpeciesGroup")
+dat2 <- data.frame(str_split_fixed(forid.missing, "_and_", 4))  # create dataframe for ForID with no bird data
+colnames(dat2) <- c("ForAge", "ForHt", "BEC", "SpeciesGroup")
 
-dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=rep(unique(totalBirds$BEC)[1], times=nrow(dat2)), SpeciesGroup=dat2$SpeciesGroup, ForAge=dat2$ForAge, ForHt=dat2$ForHt, Count=rep(-999, times=nrow(dat2)), FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
+dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=dat2$BEC, SpeciesGroup=dat2$SpeciesGroup, ForAge=dat2$ForAge, ForHt=dat2$ForHt, Count=rep(-999, times=nrow(dat2)), FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
 
 test <- rbind(totalBirds[colnames(dat4)], dat4) # combine real data with fake data
-
-# create table of ranks for all combinations of attributes for plotting
 
 ```
 
@@ -439,10 +479,10 @@ tota.becsg <- split(test, test$BEC.Species)
 mastermatrix$BEC.Species <- with(mastermatrix, paste(BEC, SpeciesGroup, sep="."))
 ranks.split <- split(mastermatrix, mastermatrix$BEC.Species)
 
-lapply(1:length(tota.becsg), function(i) {
-  ggplot(tota.becsg[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt, col=ForHt, group=ForHt)) + geom_point(size=3, position=position_dodge(width=0.8)) + facet_wrap(~BEC.Species)+ xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 1))  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
+lapply(names(tota.becsg), function(i) {
+  ggplot(tota.becsg[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt, col=ForHt, group=ForHt)) + geom_point(size=3, position=position_dodge(width=0.8)) + facet_wrap(~BEC.Species)+ xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 9))  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
   
-  ggplot(tota.becsg[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt, group=ForHt)) + geom_point(aes(col=ForHt), size=3, position=position_dodge(width=0.8)) + facet_wrap(~BEC.Species)+ xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme5 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 1))  + geom_point(data=ranks.split[[i]], aes(x=ForAge, y=FinalRank+20, col=ForHt), position=position_dodge(width=.75), size=4, show.legend = F) + geom_text(data=ranks.split[[i]], aes(x=ForAge, y=FinalRank+21, label=round(FinalRank,1)), position=position_dodge(width=0.75), size=3.1)  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") + geom_hline(yintercept=20) + geom_text(aes(x=1, y=26), label="Rank from Matrix", col="black", size=5)
+  ggplot(tota.becsg[[i]], aes(x=ForAge, y=PredDens_ForID, fill=ForHt, group=ForHt)) + geom_point(aes(col=ForHt), size=3, position=position_dodge(width=0.8)) + facet_wrap(~BEC.Species)+ xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme5 + coord_cartesian(ylim=range(totalBirds$PredDens_ForID) + c(-1, 8))  + geom_point(data=ranks.split[[i]], aes(x=ForAge, y=FinalRank+20, col=ForHt), position=position_dodge(width=.75), size=4, show.legend = F) + geom_text(data=ranks.split[[i]], aes(x=ForAge, y=FinalRank+21, label=round(FinalRank,1)), position=position_dodge(width=0.75), size=3.1)  + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") + geom_hline(yintercept=20) + geom_text(aes(x=1.05, y=26.5), label="Rank from Matrix", col="black", size=5)
 })
   
 ```
