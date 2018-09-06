@@ -2,9 +2,9 @@
 title: "Ranks Versus Density"
 author: "Nicole Barker"
 output:
-  html_document: default
   word_document:
     reference_docx: ../RmdStyles/ReportFormat_1.docx
+  html_document: default
 ---
 
 **Objective: Evaluate how well matrix ranks predict observed bird density**
@@ -13,15 +13,56 @@ Matrix ranks are intended to indicate nest density. Assuming that density of sin
 
 Caveat: not all forest stand types have bird data associated with them;  this analysis is for sampled forest stand types. 
 
+**Desired result**: An understanding of how well observed bird density is predicted by stand rank.
+
 **Approach: Regression of density (count with offset) ~ Rank**
+
+**Concerns:** The biggest concern regarding the analysis below is caused by the non-random structure in the dataset. The analysis below assumes that all surveys are independent. However, we know this isn't true. There are:
+
+* Multiple surveys within a year for a given location (PKEY within SS:YEAR)
+* Multiple years for a given location (YEAR WITHIN SS)
+* Variable numbers of point count survey stations for a given stand (SS per ObjectID)
+* Multiple examples of stands on the landscape for a given stand type (ObjectID for ForID)
+
+If we treat PKEY as the sampling unit, we see a) multiple sources of variation being crammed into one analysis; and b) pseudoreplication since some stands and stand types will have way more replicates (i.e., bird surveys) than others. 
+
+What is the best way to accommodate this nested structure during a regression?
+
+Some possible options. 
+
+1. Treat all PKEY as independent (what is done below) 
+2. Subsample: Take one PKEY per SS - reduces sample size but avoids pseudoreplication of visits within locations
+3. Aggregate to stand: Average per stand across SS/PKEY becomes the DV - this leads to doing stats on stats
+4. Aggregate to stand type: Average per ForID across SS/PKEY becomes the DV. - this leads to doing stats on stats
+5. Include stand ID as a random factor - this may address the structure of the dataset in terms of variably sampling ForIDs. It doesn't handle multiple surveys per SS.
+5. Bootstrapped subsample: Take multiple weighted samples of data. SS is unit of replication. We choose a maximum number -  of SS per stand and randomly select from the available SS if there's more than that number. Within an SS, we choose a single PKEY. -- This may be the ideal solution, but it is more work than Nicole is willing/able to do right now. 
+
+This current script is a **DEMONSTRATION** only. Lionel and Nicole have not discussed which approach to take. The below script uses all PKEYs, and treats them a independent replicates. So there is some pseudoreplication in that single survey locations are represented more than once. 
+
 
 ``` {r setup, echo=F, message=F, warning=F}
 require(knitr)
 opts_knit$set(root.dir = '..')
+knitr::opts_chunk$set(
+  fig.path = "figures/"
+)
 rm(list=ls())
+getwd()
 ```
 
-#### Dataset requirements
+``` {r}
+source("Rfunctions/UsefulFunctions.R")
+```
+
+
+#### Method: Poisson GLM with 
+* Stand rank as predictor - continuous variable OR categorical (running separately)
+* Count as response variable
+* TOTA offset as offset 
+
+Count + offset ~ Stand rank
+
+#### Datasets required
 
 1. mastermatrix
 2. ranks
@@ -31,9 +72,9 @@ rm(list=ls())
 
 ## Step 1. Load data
 
-Previous cleaned in file D.01.DensityPatterns
+Previous cleaned in file E.01.DensityPatterns
 ``` {r}
-load("RDataFiles/totalBirds_withRanks.RData")
+load("RDataFiles/totalBirds_clean.RData")
 ```
 
 ## Step 2. GLM of Density ~ Rank (rank is continuous)
@@ -45,6 +86,7 @@ Testing how well rank explains observed bird density (response variable)
 **May want to redo stats here based on decisions above re: pseudoreplication**
 
 ``` {r eval=T, echo=T}
+class(totalBirds$FinalRank)
 fit1 <- glm(Count ~ FinalRank, family=poisson, data=totalBirds, offset=TOTA)
 summary(fit1)
 ``` 
@@ -64,6 +106,7 @@ newdat2$PredDens <- predict(fit1, newdata = newdat2, type = "response") # predic
 tmp1 <- newdat2[c("FinalRank", "PredDens")] # eliminate TOTA table from data
 
 tmp1$Source <- "RankDens" # adding column to identify where predicted density came from
+
 ```
 
 ``` {r}
@@ -71,16 +114,18 @@ plot(newdat2$FinalRank, newdat2$PredDens, type="l")
 ```
 
 
-TEMP: Trying to find a way of plotting observed densities (per ForID) to predicted densities per rank. 
 ``` {r}
-tmp <- data.frame(FinalRank=totalBirds$FinalRank, PredDens=totalBirds$PredDens_ForID, Source="ForIDDens")
-tmp2 <- rbind(tmp1, tmp)
+# get "observed" densities per ForID - calculated in file E.01.DensityPatterns.Rmd
 
-## having trouble finding a way of plotting background distributions of densities versus the densities predicted for final ranks. 
+load("RDataFiles/totalBirds_withpreds.RData")
+
+ggplot(dens_per_ForID, aes(x=as.factor(FinalRank), y=PredDens_ForID)) + geom_violin(aes(fill=as.factor(FinalRank), group=as.factor(FinalRank))) + myfacettheme2 + guides(fill=FALSE) + scale_fill_manual(values=palrank) + geom_line(data=newdat2, aes(x=FinalRank, y=PredDens), size=3) + xlab("Rank") + ylab("Bird Density")
+
+ggplot(newdat2, aes(x=FinalRank, y=PredDens)) + geom_line() + myfacettheme2 + ylab("Predicted Bird Density") + scale_x_continuous(labels=newdat2$FinalRank, breaks=newdat2$FinalRank, name="Rank")
 ```
 
 # ==================================
-# code below here has not been updated -- as of August 20, 2018
+# code below here has not been updated -- as of Sept 6, 2018
 # ==================================
 
 
