@@ -289,6 +289,8 @@ Expectation is true for those example Forest stand types, despite their observed
 totalBirds.all <- totalBirds
 totalBirds <- totalBirds[c("ForID", "BEC", "SpeciesGroup", "ForAge", "ForHt", "FinalRank", "PredDens_ForID")]
 totalBirds <- totalBirds[!duplicated(totalBirds),]
+dens_per_ForID <- totalBirds
+save(dens_per_ForID, file="RDataFiles/totalBirds_withpreds.RData")
 ```
 
 #### Density as a function of rank 
