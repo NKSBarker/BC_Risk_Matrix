@@ -10,9 +10,18 @@ output:
 
 **Objective: Summarize how observed bird density varies across forest attributes**
 
-We need to convert observed Counts to predicted Density only to correct for survey method and detectability. We can't describe patterns in counts because it is confounded with different contributed datasets. 
+**Desired result**: A mean observed density for each forest stand type that has at least one point count survey
 
-**Desired result**: A density estimate for each forest stand type that has at least one point count survey
+We need to convert observed Counts to predicted Density only to correct for survey method and detectability. We can't describe patterns in counts because it is confounded with different contributed datasets. We can't do a simple count/area calculation because survey methods differ. Fortunately BAM's QPAD offsets correct for survey method (duration, count radius)
+
+**Approach**
+
+* Build a cell-means model (no intercept), with forest stand type (ForID) as the sole predictor. TOTA (QPAD-derived offsets for total species) is included as an offset to correct for method. 
+    * Poisson GLM: Count + offset ~ ForID
+        * Forest stand type as predictor
+        * Count as response variable
+        * TOTA offset as offset 
+* Plot ForID means as a function of forest attributes to show how bird density varies across forest attributes. 
 
 **Assumptions:** A number of assumptions are made, as a result of the unbalanced sample 'design' within the BAM dataset. 
 
@@ -34,7 +43,7 @@ Some possible options
 4. Aggregate to stand type: Average per ForID across SS/PKEY becomes the DV. 
 5. Bootstrapped subsample: Take multiple weighted samples of data. SS is unit of replication. We choose a maximum number of SS per stand and randomly select from the available SS if there's more than that number. Within an SS, we choose a single PKEY. 
 
-This current script is a **DEMONSTRATION** only. Lionel and Nicole have not discussed which approach to take. So the below script uses all PKEYs, and treats them a independent replicates. So there is some pseudoreplication in that single survey locations are represented more than once. 
+This current script is a **DEMONSTRATION** only. Lionel and Nicole have not discussed which approach to take. So the below script uses all PKEYs, treating them as independent replicates. There is some pseudoreplication in that survey locations (SSs) are represented more than once. The dataset is reduced to one bird density value per ForID (stand type) for plotting across forest attributes. 
 
 
 ``` {r setup, echo=F, message=F, warning=F}
@@ -52,13 +61,12 @@ source("Rfunctions/UsefulFunctions.R")
 ```
 
 
-#### Method: Poisson GLM with 
+#### Method: Poisson GLM 
 
-Mean model (no covariates) to get average bird density per stand type, correcting counts to density with QPAD offsets for "TOTAL species"
-
-* Forest stand type as predictor
-* Count as response variable
-* TOTA offset as offset 
+* Build a cell-means model (no intercept), with forest stand type (ForID) as the sole predictor. Correcting counts to density with QPAD offsets for "TOTAL species"
+        * Forest stand type as predictor
+        * Count as response variable
+        * TOTA offset as offset 
 
 Count + offset ~ ForID
 
@@ -125,6 +133,11 @@ load("RDataFiles/TOTAlcount.per.PKEY.withForID.RData")
 colnames(TOTAlcount.per.PKEY.withForID)
 nrow(TOTAlcount.per.PKEY.withForID)
 length(unique(TOTAlcount.per.PKEY.withForID$PKEY))
+```
+
+For some reason, the dataset has replicate rows for a given PKEY. I must eliminate them. 
+
+``` {r}
 birds <- TOTAlcount.per.PKEY.withForID[!duplicated(TOTAlcount.per.PKEY.withForID),]
 birds <- birds[c("ForID", "PKEY", "Count")]
 
@@ -157,7 +170,7 @@ kable(head(OFF, 10), row.names=F)
 
 ```
 
-####5. Previously aggregated datasets
+####5. Previously aggregated rank means
 
 These summaries of average rank across various combinations of forest attribute were generated in D.01.RankPatterns.Rmd
 
@@ -228,8 +241,6 @@ So here we're just calculating the mean bird density per ForID (forest stand typ
 
 Forest stand type is a factor with `r length(unique(totalBirds$ForID))` levels
 
-**May adjust this based on pseudoreplication discussion above. e.g., using individual stand polygon (not stand TYPE) as a random factor**
-
 ``` {r}
 if ('fit.dens.forid_tot.RData' %in% dir("RDataFiles")) {
   load("RDataFiles/fit.dens.forid_tot.RData") # loads the saved results if it's already run and saved
@@ -246,7 +257,7 @@ if (exists("fit.dens.forid_tot")==FALSE) { #conditional statement; won't run if 
 #### Prediction: Estimate the number of birds in each forest stand type, based on the model. 
 
 Only predicts to the forest stands we sampled. `r length(unique(totalBirds$ForID))` unique stand types.
-Basically just takes the mean of all samples within a forest stand type and adjusts by the offset. All stands of the same type will have the same predicted bird density. No covariates in the above model.
+Basically just takes the mean of all samples within a forest stand type and adjusts by the offset. All stands of the same type will have the same predicted bird density. No environmental covariates in the above model.
 
 ``` {r}
 newdat <- totalBirds[c("ForID")]
@@ -272,8 +283,13 @@ Expectation is true for those example Forest stand types, despite their observed
 
 # Plot Patterns: Visualize relationships between age/height and bird density (in sampled stands)
 
-*As of August 20 2018, I'm a bit worried about whether I'm running the right analyses. Right now this function plots a density diagram of all rows in the totalBirds file. I think each row corresponds to an individual PKEY. There can be more than one PKEY in a given forest stand polygon.  Nevermind the fact that some stand TYPES (forID) have been sampled more than others. My question is about what unit should be treated as the individual replicate for purposes of displaying relationships: The bird point survey (no), the survey location (no?), the individual forest stand (maybe?) or the stand TYPE (maybe?). I'm going to meet with Lione and others to decide which way to present the information. Then I'll need to take a subset of this table and redo the plots below.*
+### Subset dataset to a single density value per forest stand type (ForID)
 
+``` {r}
+totalBirds.all <- totalBirds
+totalBirds <- totalBirds[c("ForID", "BEC", "SpeciesGroup", "ForAge", "ForHt", "FinalRank", "PredDens_ForID")]
+totalBirds <- totalBirds[!duplicated(totalBirds),]
+```
 
 #### Density as a function of rank 
 
@@ -282,17 +298,6 @@ ggplot(totalBirds, aes(x=as.factor(FinalRank), y=PredDens_ForID, group=as.factor
 
 ggplot(totalBirds, aes(x=as.factor(FinalRank), y=PredDens_ForID, group=as.factor(FinalRank), col=as.factor(FinalRank), fill=as.factor(FinalRank))) + geom_violin() + xlab("Rank") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + guides(col=FALSE, fill=FALSE) + scale_fill_manual(values=palrank) + scale_colour_manual(values=palrank)
 ```
-
-#### Absolute count as a function of rank
-
-Disclaimer that there may be patterns here related to sampling rather than any forest attribute. e.g., if projects that used the same survey method also tended to sample the same forest types, we have a systematic bias. 
-
-``` {r}
-ggplot(totalBirds, aes(x=as.factor(FinalRank), y=Count, group=as.factor(FinalRank), fill=as.factor(FinalRank))) + geom_boxplot() + xlab("Rank") +  myfacettheme2 + guides(fill=FALSE)+ scale_fill_manual(values=palrank) + scale_colour_manual(values=palrank)
-
-ggplot(totalBirds, aes(x=as.factor(FinalRank), y=Count, group=as.factor(FinalRank), col=as.factor(FinalRank), fill=as.factor(FinalRank))) + geom_violin() + xlab("Rank")  + myfacettheme2 + guides(fill=FALSE, col=FALSE)+ scale_fill_manual(values=palrank) + scale_colour_manual(values=palrank)
-```
-
 
 #### Bird density as a function of forest height and age
 
@@ -316,7 +321,7 @@ agehtcombos.missing <- agehtcombos.possible[!agehtcombos.possible %in% agehtcomb
 
 dat2 <- data.frame(str_split_fixed(agehtcombos.missing, "_and_", 2))  # create dataframe for ForID with no bird data
 colnames(dat2) <- c("ForAge", "ForHt")
-dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=rep(unique(totalBirds$BEC)[1], times=nrow(dat2)), SpeciesGroup=rep(unique(totalBirds$SpeciesGroup)[1], times=nrow(dat2)), ForAge=dat2$ForAge, ForHt=dat2$ForHt, Count=rep(-999, times=nrow(dat2)), FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
+dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=rep(unique(totalBirds$BEC)[1], times=nrow(dat2)), SpeciesGroup=rep(unique(totalBirds$SpeciesGroup)[1], times=nrow(dat2)), ForAge=dat2$ForAge, ForHt=dat2$ForHt, FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
 
 test <- rbind(totalBirds[colnames(dat4)], dat4) # combine real data with fake data
 ```
@@ -331,17 +336,6 @@ ggplot(test, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_boxplot(na.rm=F
 ggplot(totalBirds, aes(x=ForAge, y=PredDens_ForID, fill=ForHt)) + geom_violin() + xlab("Forest Age") + ylab("Mean Density per Forest Stand Type") + myfacettheme2 + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
 ```
 
-
-#### Absolute count as a function of forest height and age
-
-Across all BEC and tree species groups.
-Boxplot and violin plot show the same information. 
-
-``` {r Fig.BirdCount_AgeHeight, fig.height=6, fig.width=7, dpi=150, eval=T}
-ggplot(totalBirds, aes(x=ForAge, y=Count, fill=ForHt)) + geom_boxplot() + xlab("Forest Age") + ylab("Mean Count per Forest Stand Type") + myfacettheme2 + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
-
-ggplot(totalBirds, aes(x=ForAge, y=Count, fill=ForHt, col=ForHt)) + geom_violin() + xlab("Forest Age") + ylab("Mean Count per Forest Stand Type") + myfacettheme2 + scale_colour_manual(values=palht, name="Height Class") + scale_fill_manual(values=palht, name="Height Class") 
-```
 
 ``` {r}
 rm(test, agehtcombos.missing, agehtcombos.possible, agehtcombos.sampled)
@@ -360,7 +354,7 @@ agehtbeccombos.missing <- agehtbeccombos.possible[!agehtbeccombos.possible %in% 
 
 dat2 <- data.frame(str_split_fixed(agehtbeccombos.missing, "_and_", 3))  # create dataframe for ForID with no bird data
 colnames(dat2) <- c("ForAge", "ForHt", "BEC")
-dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=dat2$BEC, SpeciesGroup=rep(unique(totalBirds$SpeciesGroup)[1], times=nrow(dat2)), ForAge=dat2$ForAge, ForHt=dat2$ForHt, Count=rep(-999, times=nrow(dat2)), FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
+dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=dat2$BEC, SpeciesGroup=rep(unique(totalBirds$SpeciesGroup)[1], times=nrow(dat2)), ForAge=dat2$ForAge, ForHt=dat2$ForHt, FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
 
 test <- rbind(totalBirds[colnames(dat4)], dat4) # combine real data with fake data
 rm(dat2, dat4)
@@ -413,7 +407,7 @@ agehtsgcombos.missing <- agehtsgcombos.possible[!agehtsgcombos.possible %in% age
 dat2 <- data.frame(str_split_fixed(agehtsgcombos.missing, "_and_", 3))  # create dataframe for ForID with no bird data
 colnames(dat2) <- c("ForAge", "ForHt", "SpeciesGroup")
 
-dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=rep(unique(totalBirds$BEC)[1], times=nrow(dat2)), SpeciesGroup=dat2$SpeciesGroup, ForAge=dat2$ForAge, ForHt=dat2$ForHt, Count=rep(-999, times=nrow(dat2)), FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
+dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=rep(unique(totalBirds$BEC)[1], times=nrow(dat2)), SpeciesGroup=dat2$SpeciesGroup, ForAge=dat2$ForAge, ForHt=dat2$ForHt, FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
 
 test <- rbind(totalBirds[colnames(dat4)], dat4) # combine real data with fake data
 rm(dat2,dat4)
@@ -464,7 +458,7 @@ forid.missing <- forid.possible[!forid.possible %in% forid.sampled]
 dat2 <- data.frame(str_split_fixed(forid.missing, "_and_", 4))  # create dataframe for ForID with no bird data
 colnames(dat2) <- c("ForAge", "ForHt", "BEC", "SpeciesGroup")
 
-dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=dat2$BEC, SpeciesGroup=dat2$SpeciesGroup, ForAge=dat2$ForAge, ForHt=dat2$ForHt, Count=rep(-999, times=nrow(dat2)), FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
+dat4 <- data.frame(ForID=rep(-999, times=nrow(dat2)), BEC=dat2$BEC, SpeciesGroup=dat2$SpeciesGroup, ForAge=dat2$ForAge, ForHt=dat2$ForHt, FinalRank=rep(-999, times=nrow(dat2)), PredDens_ForID=rep(-999, times=nrow(dat2)))   # create fake data for Count, FinalRank, and PredDens_ForID
 
 test <- rbind(totalBirds[colnames(dat4)], dat4) # combine real data with fake data
 
@@ -486,5 +480,3 @@ lapply(names(tota.becsg), function(i) {
 })
   
 ```
-
-
