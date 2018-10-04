@@ -7,6 +7,11 @@ output:
   html_document: default
 ---
 
+###############################################
+# double check that 0s are added into this database. 
+###############################################
+
+
 **Objective: Evaluate how well matrix ranks predict observed bird density**
 
 Matrix ranks are intended to indicate nest density. Assuming that density of singing birds is a reliable indicator of nest density (untested in these analyses), matrix ranks should correlate with observed density of singing birds. 

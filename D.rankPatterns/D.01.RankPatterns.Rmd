@@ -1,5 +1,5 @@
 ---
-title: 'Rank Patterns: How the matrix''s stand ranks vary with forest attributes'
+title: 'Rank Patterns: How the matrix's stand ranks vary with forest attributes'
 author: "Nicole Barker"
 output:
   word_document:
