@@ -1,0 +1,176 @@
+---
+title: "A.01. Create Master Matrix"
+author: "Lionel Leston & Nicole Barker"
+date: "Feb 2019"
+output: html_document
+---
+```{r setup, echo=F, message=F, warning=F}
+require(knitr)
+opts_knit$set(root.dir = '..')
+knitr::opts_chunk$set(
+  fig.path = "figures/"
+)
+rm(list=ls()); gc()
+getwd()
+```
+
+``` {r usefulfunc, echo=F}
+source("Rfunctions/UsefulFunctions.R")
+```
+
+## Goal: Create the mastermatrix file and a subset of the VRI data that has valid stand types only. 
+
+This document describes how to get the GIS data from the geodatabase provided by FORSITE.
+
+# Background
+
+Polygons in the associated vector file are stands from the Vegetation Resource Inventory (VRI) dataset. Forsite obtained the 2016 VRI from the province, calculated some intermediate variables, and then assigned stand risk ranks based on combinations of BEC, Stand Type, Age Class, and height class outlined in the risk matrix of incidental take by forestry operations, created by Kari Stuart-Smith. 
+
+## Background work done before it came to U of A
+
+* Creation of matrix and ranks of matrix stand classes identified in that matrix - see *insert report about Kari's matrix*
+* Translation of that matrix into a spatial file - see *insert forsite's report*
+
+## Background work done by U of A folks before switching over to R
+
+* Calculated polygon area 
+* Removed columns we thought for sure wouldn't be necessary
+
+#### Calculating Area
+
+While this layer has a "Shape_Area" field, we don't know the origin of this field. So we calculated polygon areas ourselves, following [these directions](https://www.gislounge.com/calculating-polygon-area-in-arcmap/). 
+
+#### Removing columns we thought for sure wouldn't be necessary
+
+Forsite produced a version of the VRI file with their ranks and ALL other VRI fields. This resulted in a massive table that is unwieldy to use. For our purposes, we only need a subset of these columns. 
+
+ --> Full export: FORSITE_all_regions_all_vri_fields(processed).csv was exported from "M:\DataStuff\SpatialData\VegetationResourceInventory\2016.10_Download\FORSITE_all_regions_all_vri_fields(processed).gdb"
+
+We subset the dataset in ArcMap based on [these instructions](https://support.esri.com/en/technical-article/000007114).
+
+ --> Reduced export is here: "M:\DataStuff\SpatialData\VegetationResourceInventory\2016.10_Download\FORSITE_all_regions_all_vri_fields(fields_subset).csv"
+ 
+There are 3,765,621 records/polygons/rows in the attribute table, when viewed in ArcMap.
+
+# Load VRI file and extract values for each forest attribute. 
+
+## Step 1. Load data into R
+Load single CSV file with all records (but only some fields) exported from *migratory_bird* layer in the *FORESITE_all_regions_all_vri_fields.gdb*
+
+```{r load, echo=FALSE}
+riskmatrixVRI.full <- read.csv("rawData/FORSITE_all_regions_all_vri_fields(fields_subset).csv", header=T, stringsAsFactors = F)
+nrow(riskmatrixVRI.full)
+colnames(riskmatrixVRI.full)
+```
+
+There are `r nrow(riskmatrixVRI.full)` rows/observations in the data frame. This is the same number as the attribute table in ArcMap, so we conclude that all records from the the entire risk matrix VRI attribute table have been loaded into R.
+
+## Step 2. Load lookup tables of valid factor levels for each forest attribute. 
+
+These csv files were created based on the matrix report,conversations with Kari, and some interaction with Forsite as well. They are to be treated as the definitive verdict on levels for each of the four forest attribute factors.
+
+Filter each lookup table for only those levels that are used in the matrix. 
+
+``` {r}
+BEC.lookup <- read.csv("rawData/LOOKUP.BEC.csv", header=T)
+BEC.lookup.valid <- BEC.lookup[BEC.lookup$InMatrix == "Yes",]
+
+SpeciesGroup.lookup <- read.csv("rawData/LOOKUP.TreeSpeciesCodes.csv", header=T)
+SpeciesGroup.lookup <- SpeciesGroup.lookup[SpeciesGroup.lookup$file == "mig_birds_Layer_polyarea_forstandatts",]
+SpeciesGroup.lookup.valid <- SpeciesGroup.lookup[SpeciesGroup.lookup$InMatrix == "Yes", c("code_orig", "code_use", "Order")]
+
+Age.lookup <- read.csv("rawData/LOOKUP.ForestAge.csv", header=T)
+Age.lookup.valid <- Age.lookup[Age.lookup$InMatrix == "Yes",]
+
+Height.lookup <- read.csv("rawData/LOOKUP.ForestHt.csv", header=T)
+Height.lookup.valid <- Height.lookup[Height.lookup$InMatrix == "Yes",]
+```
+
+## Step 3. Add columns with preferred names for each factor level.
+
+Use the merge function to combine the VRI file with the valid factor levels.. and subset for only those valid levels. 
+Also insert the correct factor level names and order in which they should be displayed.
+SpeciesGroup is a bit complicated in that the levels in the original data file (code_orig) aren't quite right so we have to insert replacements (code_use).
+
+``` {r}
+sort(unique(riskmatrixVRI.full$BecZone))
+riskmatrixVRI <- merge(riskmatrixVRI.full, BEC.lookup.valid[c("BecZone", "BEC.Zone.Name")], by="BecZone", all.y=T) # merges the risk matrix table with the lookup table, subsetting for only those levels that are in the lookup table. i.e., valid levels
+riskmatrixVRI$BecZone <- factor(riskmatrixVRI$BecZone, levels=BEC.lookup.valid$BecZone[BEC.lookup.valid$Order])# removes undesired factor levels and puts them in the order I want
+nrow(riskmatrixVRI)
+sort(unique(riskmatrixVRI$BecZone))
+
+sort(unique(riskmatrixVRI$code_orig))
+colnames(SpeciesGroup.lookup.valid)[which(colnames(SpeciesGroup.lookup.valid) == "code_orig")] <- "SpeciesGroup"
+riskmatrixVRI <- merge(riskmatrixVRI, SpeciesGroup.lookup.valid[c("SpeciesGroup", "code_use")], by="SpeciesGroup", all.y=T) # merges the risk matrix table with the lookup table, subsetting for only those levels that are in the lookup table. i.e., valid levels
+colnames(riskmatrixVRI)[which(colnames(riskmatrixVRI) == "SpeciesGroup")] <- "code_orig" 
+colnames(riskmatrixVRI)[which(colnames(riskmatrixVRI) == "code_use")] <- "SpeciesGroup" #make the fixed species group codes into the SpeciesGroup column
+riskmatrixVRI$SpeciesGroup <- factor(riskmatrixVRI$SpeciesGroup, levels=SpeciesGroup.lookup.valid$code_use[SpeciesGroup.lookup.valid$Order]) # removes undesired factor levels and puts them in the order I want
+nrow(riskmatrixVRI)
+sort(unique(riskmatrixVRI$SpeciesGroup))
+
+sort(unique(riskmatrixVRI$Age))
+riskmatrixVRI <- merge(riskmatrixVRI, Age.lookup.valid[c("ForestAge", "Age")], all.y=T) # merges the risk matrix table with the lookup table, subsetting for only those levels that are in the lookup table. i.e., valid levels
+riskmatrixVRI$ForestAge <- factor(riskmatrixVRI$ForestAge, levels=Age.lookup.valid$ForestAge[Age.lookup.valid$Order], ordered=T) # removes undesired factor levels and puts them in the order I want
+nrow(riskmatrixVRI)
+sort(unique(riskmatrixVRI$ForestAge))
+
+sort(unique(riskmatrixVRI$Height))
+riskmatrixVRI <- merge(riskmatrixVRI, Height.lookup.valid[c("ForestHeight", "Height")], all.y=T) # merges the risk matrix table with the lookup table, subsetting for only those levels that are in the lookup table. i.e., valid levels
+riskmatrixVRI$ForestHeight <- factor(riskmatrixVRI$ForestHeight, levels=Height.lookup.valid$ForestHeight[Height.lookup.valid$Order], ordered=T) # removes undesired factor levels and puts them in the order I want
+nrow(riskmatrixVRI)
+sort(unique(riskmatrixVRI$ForestHeight))
+```
+
+
+1. Valid BEC levels: `r unique(riskmatrixVRI$BecZone)`
+2. Valid stand type levels: `r unique(riskmatrixVRI$SpeciesGroupo)`
+3. Valid age levels: `r unique(riskmatrixVRI$ForestAge)`
+4. Valid height levels: `r unique(riskmatrixVRI$ForestHeight)`
+
+## Step 4. Create master matrix  
+
+Master Matrix is the base table of all possible Forest Stand types. It includes the full factorial combination of all valid levels of all forest attributes. 
+
+``` {r}
+mastermatrix <- as.data.frame(expand.grid(BecZone=BEC.lookup.valid$BecZone, SpeciesGroup=SpeciesGroup.lookup.valid$code_use, ForestAge=Age.lookup.valid$ForestAge, ForestHeight=Height.lookup.valid$ForestHeight))
+nrow(mastermatrix)
+mastermatrix$ForID <- with(mastermatrix, paste(BecZone, SpeciesGroup, ForestAge, ForestHeight, sep="."))
+write.csv(mastermatrix, file="rawData/mastermatrix.csv")
+```
+
+There are `r length(unique(mastermatrix$ForID))` unique theoretically possible stand types. 
+
+
+I think I need a version of the mastermatrix that contains the fields from the exported VRI file - so that I can link to these updated ForIDs once the bird data are intersected with the VRI. 
+
+Do this using merge
+
+``` {r}
+mastermatrix.withlookup <- merge(mastermatrix, BEC.lookup[c("BecZone")], by="BecZone", all=T)
+colnames(SpeciesGroup.lookup)[which(colnames(SpeciesGroup.lookup) == "code_use")] <- "SpeciesGroup"
+mastermatrix.withlookup <- merge(mastermatrix.withlookup, SpeciesGroup.lookup[c("SpeciesGroup", "code_orig")], by="SpeciesGroup", all=T)
+mastermatrix.withlookup <- merge(mastermatrix.withlookup, Age.lookup[c("Age", "ForestAge")], by="ForestAge", all=T)
+mastermatrix.withlookup <- merge(mastermatrix.withlookup, Height.lookup[c("Height", "ForestHeight")], by="ForestHeight", all=T)
+head(mastermatrix.withlookup, 10)
+tail(mastermatrix.withlookup, 10)
+mastermatrix.withlookup[is.na(mastermatrix.withlookup$ForID == T),]
+
+write.csv(mastermatrix.withlookup, file="rawData/mastermatrix.withlookup.csv")
+```
+
+Upon further reflection, this may not be useful. I may instead rely on the original lookup tables once I start working with the avian intersected data. 
+
+## Step 4. Save the subset version of the VRI dataset that contains only valid levels
+
+`r nrow(riskmatrixVRI.full)` rows in full VRI dataset
+`r nrow(riskmatrixVRI)` rows in VRI with valid ForIDs
+Difference: `nrow(riskmatrixVRI.full) - nrow(riskmatrixVRI)`
+
+Write vri file with only valid/ranked stands to a csv file so we don't need to re-clean it each time
+
+``` {r}
+riskmatrixVRI$ForID <- with(riskmatrixVRI, paste(BecZone, SpeciesGroup, ForestAge, ForestHeight, sep="."))
+write.table(riskmatrixVRI, "rawData/vri.validstandsonly.csv", sep=",", row.names = F, col.names = T)
+kable(head(riskmatrixVRI[c("ForID", "BecZone", "SpeciesGroup", "ForestAge", "ForestHeight", "Rank")], 15))
+```
+
