@@ -1,0 +1,57 @@
+---
+title: "B.0X. Describe temporal lag"
+author: "Lionel Leston & Nicole Barker"
+date: "Feb 2019"
+output: html_document
+---
+```{r setup, echo=F, message=F, warning=F}
+require(knitr)
+opts_knit$set(root.dir = '..')
+knitr::opts_chunk$set(
+  fig.path = "figures/"
+)
+rm(list=ls()); gc()
+getwd()
+```
+
+``` {r usefulfunc, echo=F}
+source("Rfunctions/UsefulFunctions.R")
+```
+
+
+# Step 1: Load Bird data table with survey events (date/time) linked to location (SS)
+``` {r}
+birds.pkey <- read.csv("rawData/birds.pkey.novri.csv", header=T)
+colnames(birds.pkey)
+kable(head(birds.pkey))
+```
+
+
+# Step 2: Calculate time lag between bird sampling and VRI date (2014)
+
+Use column YYYY as year of bird data. 
+
+Add a column for the VRI date --> 2014 is when it is supposedly projected to
+
+``` {r}
+birds.pkey$VRIdate <- 2014
+birds.pkey$temporalLag <- birds.pkey$VRIdate - birds.pkey$YYYY
+```
+
+# Step3: Summarize time lag
+
+### Graphically
+
+``` {r Fig.histogram.temporallag}
+ggplot(birds.pkey, aes(x=temporalLag)) + geom_histogram(bins=23) + myfacettheme2 + xlab("# Years Difference") + ylab("Number of Surveys")
+```
+
+### Tabular
+
+``` {r}
+table(birds.pkey$temporalLag)
+tmp <- as.data.frame(t(table(birds.pkey$temporalLag)))
+tmp <- tmp[2:3]
+colnames(tmp)<- c("Number of years difference", "Number of surveys with this difference")
+kable(tmp)
+```

@@ -1,0 +1,75 @@
+---
+title: "A.0X. Prep bird data"
+author: "Lionel Leston & Nicole Barker"
+date: "Feb 2019"
+output: html_document
+---
+```{r setup, echo=F, message=F, warning=F}
+require(knitr)
+opts_knit$set(root.dir = '..')
+knitr::opts_chunk$set(
+  fig.path = "figures/"
+)
+rm(list=ls()); gc()
+getwd()
+```
+
+``` {r usefulfunc, echo=F}
+source("Rfunctions/UsefulFunctions.R")
+```
+
+``` {r}
+birds.ss <- read.csv("rawData/BBS_BAM_Atlas_MigLayer_Jan22_2017.csv", header=T)
+colnames(birds.ss)
+unique(birds.ss$PCODE)
+```
+
+## Dataset 1. Lookup table to link point count station locations (SS) with forest stand polygons
+
+Load intersected file and select only the basic columns required to link a bird point count location (SS) with a given forest stand polygon (FEATURE_ID)
+``` {r}
+lookup.bird.ss.vri.intersect <- birds.ss[c("PCODE", "SS", "POINT_X", "POINT_Y", "FEATURE_ID")] 
+lookup.bird.ss.vri.intersect <- lookup.bird.ss.vri.intersect[order(lookup.bird.ss.vri.intersect$PCODE),]
+kable(rbind(head(lookup.bird.ss.vri.intersect),tail(lookup.bird.ss.vri.intersect)))
+write.csv(lookup.bird.ss.vri.intersect, file="rawData/LOOKUP.birdSSvriIntersect.csv", row.names=F)
+```
+
+
+## Dataset 2. Bird data table with survey events (date/time) linked to location (SS)
+
+``` {r}
+pkey <- read.csv("rawData/BC_COFI_PKEY-manuallyfixed.csv", header=T)
+colnames(pkey)
+head(pkey)
+unique(pkey$PCODE)
+```
+
+Check if SS are the same between the dataset intersected with VRI and this PKEY one
+
+``` {r}
+all.equal(unique(pkey$SS), unique(lookup.bird.ss.vri.intersect$SS))
+```
+
+They're not equal --> pkey file has more. 
+``` {r}
+testing.equal <- as.character(unique(pkey$SS)) == as.character(unique(lookup.bird.ss.vri.intersect$SS))
+head(testing.equal)
+head(unique(pkey$SS))
+head(unique(lookup.bird.ss.vri.intersect$SS))
+
+```
+
+It's not clear why, but the intersected file seems to be missing some BBS routes from BC. It doesn't matter so much right now, since I'm going to get version 5 of the BAM dataset soon. I'll just continue with whatever points were intersected. 
+
+Merge vri intersected points with pkey data, keeping only those that have been intersected
+
+``` {r}
+birds.pkey <- merge(pkey, lookup.bird.ss.vri.intersect, by="SS", all.y=TRUE)
+nrow(birds.pkey)
+write.csv(birds.pkey, file="rawData/birds.pkey.novri.csv", row.names=F)
+```
+
+## Dataset 3: Bird data table with bird observations linked to PKEY and location
+
+
+## Dataset 4: Bird and vri data table with bird observations linked to VRI data
